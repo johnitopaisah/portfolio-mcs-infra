@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: node-exporter
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/managed-by: argocd
+spec:
+  # ClusterIP None — headless so Prometheus can discover individual node IPs
+  clusterIP: None
+  selector:
+    app: node-exporter
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: 9100
+      protocol: TCP

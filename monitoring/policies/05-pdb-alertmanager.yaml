@@ -1,0 +1,19 @@
+# PodDisruptionBudget — Alertmanager
+# Guarantees alert delivery continues during cluster maintenance.
+# Without this, a node drain could silence alerting entirely
+# while a real incident is occurring.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/managed-by: argocd
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: alertmanager

@@ -1,0 +1,34 @@
+# # ============================================================
+# #  ArgoCD Application — monitoring/policies
+# #
+# #  Sync wave 1: quotas and PDBs applied before workloads start
+# #  so that resource requests are validated immediately.
+# # ============================================================
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: monitoring-policies
+#   namespace: argocd
+#   labels:
+#     app.kubernetes.io/name: monitoring-policies
+#     app.kubernetes.io/part-of: portfolio-monitoring
+#     app.kubernetes.io/managed-by: argocd
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "1"
+#   finalizers:
+#     - resources-finalizer.argocd.argoproj.io
+# spec:
+#   project: portfolio-monitoring
+#   source:
+#     repoURL: https://github.com/johnitopaisah/portfolio-mcs
+#     targetRevision: develop
+#     path: monitoring/policies
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: monitoring
+#   syncPolicy:
+#     automated:
+#       selfHeal: true
+#       prune: true
+#     syncOptions:
+#       - CreateNamespace=false

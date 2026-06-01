@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-07-visitors
+  namespace: monitoring
+  labels:
+    app: grafana
+    dashboard: visitor-analytics
+data:
+  07-visitor-analytics.json: |
+    {
+      "uid": "portfolio-visitors",
+      "title": "Visitor Analytics",
+      "description": "Portfolio visitor tracking — traffic sources, countries, devices, browsers, visit rate",
+      "tags": ["portfolio-mcs", "visitors", "analytics"],
+      "timezone": "browser",
+      "refresh": "5m",
+      "time": { "from": "now-24h", "to": "now" },
+      "panels": [
+
+        { "id": 1, "type": "stat", "title": "Total Visitors (all-time)",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "none", "textMode": "value" },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "fixed", "fixedColor": "purple" },
+            "thresholds": { "steps": [{ "color": "purple", "value": 0 }] } } },
+          "targets": [{ "expr": "sum(portfolio_visitors_total)", "legendFormat": "All-time" }]
+        },
+
+        { "id": 2, "type": "stat", "title": "Visitors Today",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "area" },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" },
+            "thresholds": { "steps": [{ "color": "blue", "value": 0 }, { "color": "green", "value": 5 }, { "color": "super-light-green", "value": 20 }] } } },
+          "targets": [{ "expr": "sum(increase(portfolio_visitors_total[24h]))", "legendFormat": "Today" }]
+        },
+
+        { "id": 3, "type": "stat", "title": "Visitors This Week",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "area" },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" },
+            "thresholds": { "steps": [{ "color": "blue", "value": 0 }, { "color": "green", "value": 20 }] } } },
+          "targets": [{ "expr": "sum(increase(portfolio_visitors_total[7d]))", "legendFormat": "This week" }]
+        },
+
+        { "id": 4, "type": "stat", "title": "Visit Rate (per hour)",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "area" },
+          "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "thresholds" },
+            "thresholds": { "steps": [{ "color": "blue", "value": 0 }, { "color": "green", "value": 0.01 }] } } },
+          "targets": [{ "expr": "sum(rate(portfolio_visitors_total[1h]))", "legendFormat": "Rate" }]
+        },
+
+        { "id": 5, "type": "stat", "title": "Bots Filtered (24h)",
+          "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" },
+            "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] } } },
+          "targets": [{ "expr": "sum(increase(portfolio_visitor_bots_filtered_total[24h]))", "legendFormat": "Bots" }]
+        },
+
+        { "id": 6, "type": "stat", "title": "Real vs Bot Ratio (24h)",
+          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "textMode": "value_and_name" },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "color": { "mode": "thresholds" },
+            "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 0.8 }] } } },
+          "targets": [{
+            "expr": "sum(increase(portfolio_visitors_total[24h])) / clamp_min(sum(increase(portfolio_visitors_total[24h])) + sum(increase(portfolio_visitor_bots_filtered_total[24h])), 1)",
+            "legendFormat": "Real traffic %"
+          }]
+        },
+
+        { "id": 7, "type": "timeseries", "title": "Visitor Rate — last 24 hours",
+          "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+          "fieldConfig": {
+            "defaults": { "unit": "none", "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" } }
+          },
+          "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            { "expr": "sum(increase(portfolio_visitors_total[1h]))", "legendFormat": "Real visitors / hour" },
+            { "expr": "sum(increase(portfolio_visitor_bots_filtered_total[1h]))", "legendFormat": "Bots filtered / hour" }
+          ]
+        },
+
+        { "id": 8, "type": "bargauge", "title": "Top Countries",
+          "gridPos": { "x": 0, "y": 12, "w": 8, "h": 10 },
+          "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient" },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "continuous-purples" },
+            "thresholds": { "steps": [{ "color": "purple", "value": 0 }] } } },
+          "targets": [{
+            "expr": "sort_desc(sum by (country) (increase(portfolio_visitors_by_country_total[7d])))",
+            "legendFormat": "{{ country }}"
+          }]
+        },
+
+        { "id": 9, "type": "bargauge", "title": "Traffic Sources",
+          "gridPos": { "x": 8, "y": 12, "w": 8, "h": 10 },
+          "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient" },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "continuous-blues" },
+            "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+          "targets": [{
+            "expr": "sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[7d])))",
+            "legendFormat": "{{ referrer }}"
+          }]
+        },
+
+        { "id": 10, "type": "piechart", "title": "Device Types (7d)",
+          "gridPos": { "x": 16, "y": 12, "w": 8, "h": 10 },
+          "options": { "displayLabels": ["name", "percent"], "pieType": "donut",
+            "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] } },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" } } },
+          "targets": [{
+            "expr": "sum by (device) (increase(portfolio_visitors_by_device_total[7d]))",
+            "legendFormat": "{{ device }}"
+          }]
+        },
+
+        { "id": 11, "type": "bargauge", "title": "Browsers (7d)",
+          "gridPos": { "x": 0, "y": 22, "w": 8, "h": 8 },
+          "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "basic" },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "continuous-greens" },
+            "thresholds": { "steps": [{ "color": "green", "value": 0 }] } } },
+          "targets": [{
+            "expr": "sort_desc(sum by (browser) (increase(portfolio_visitors_by_browser_total[7d])))",
+            "legendFormat": "{{ browser }}"
+          }]
+        },
+
+        { "id": 12, "type": "timeseries", "title": "Visitors by Country — trend (7d)",
+          "gridPos": { "x": 8, "y": 22, "w": 16, "h": 8 },
+          "fieldConfig": {
+            "defaults": { "unit": "none", "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 1.5, "fillOpacity": 8 } }
+          },
+          "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [{
+            "expr": "sort_desc(sum by (country) (increase(portfolio_visitors_by_country_total[6h])))",
+            "legendFormat": "{{ country }}"
+          }]
+        },
+
+        { "id": 13, "type": "timeseries", "title": "Traffic Sources — trend (24h)",
+          "gridPos": { "x": 0, "y": 30, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": { "unit": "none", "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 1.5, "fillOpacity": 8 } }
+          },
+          "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [{
+            "expr": "sum by (referrer) (increase(portfolio_visitors_by_referrer_total[1h]))",
+            "legendFormat": "{{ referrer }}"
+          }]
+        },
+
+        { "id": 14, "type": "timeseries", "title": "Device Types — trend (24h)",
+          "gridPos": { "x": 12, "y": 30, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": { "unit": "none", "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 1.5, "fillOpacity": 8 } }
+          },
+          "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [{
+            "expr": "sum by (device) (increase(portfolio_visitors_by_device_total[1h]))",
+            "legendFormat": "{{ device }}"
+          }]
+        }
+
+      ],
+      "schemaVersion": 36,
+      "version": 1
+    }

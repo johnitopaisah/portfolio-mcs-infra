@@ -1,0 +1,41 @@
+# ============================================================
+#  EXAMPLE ONLY — never commit real values to git.
+#
+#  The monitoring namespace needs its own machine identity
+#  secret because InfisicalSecret CRDs reference credentials
+#  from the SAME namespace they create secrets in.
+#
+#  You can reuse the SAME Infisical Machine Identity clientId
+#  and clientSecret already used for the portfolio namespace.
+#  This secret is just a copy in a different namespace.
+#
+#  Step 1: Get your existing credentials from the cluster:
+#    kubectl get secret infisical-machine-identity \
+#      -n portfolio \
+#      -o jsonpath='{.data.clientId}' | base64 -d
+#
+#    kubectl get secret infisical-machine-identity \
+#      -n portfolio \
+#      -o jsonpath='{.data.clientSecret}' | base64 -d
+#
+#  Step 2: Create the same secret in the monitoring namespace:
+#
+#    kubectl create secret generic infisical-machine-identity \
+#      --namespace monitoring \
+#      --from-literal=clientId=YOUR_CLIENT_ID \
+#      --from-literal=clientSecret=YOUR_CLIENT_SECRET
+#
+#  This is the ONLY secret you create manually for monitoring.
+#  All other monitoring secrets are synced by the operator.
+# ============================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: infisical-machine-identity
+  namespace: monitoring
+  labels:
+    app: portfolio-monitoring
+type: Opaque
+stringData:
+  clientId:     "REPLACE_ME"
+  clientSecret: "REPLACE_ME"

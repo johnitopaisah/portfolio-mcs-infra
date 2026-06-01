@@ -1,0 +1,68 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: monitoring
+  labels:
+    app: postgres-exporter
+    app.kubernetes.io/name: postgres-exporter
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: postgres-exporter
+        app.kubernetes.io/name: postgres-exporter
+        app.kubernetes.io/part-of: portfolio-monitoring
+        app.kubernetes.io/component: exporter
+    spec:
+      serviceAccountName: postgres-exporter
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          env:
+            # The exporter binary reads DATA_SOURCE_NAME specifically.
+            # The secret key in Infisical is MONITORING_DB_DSN — we map it here.
+            - name: DATA_SOURCE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-exporter-secret
+                  key: MONITORING_DB_DSN
+          args:
+            - --collector.stat_bgwriter
+            - --collector.stat_database
+            - --collector.stat_user_tables
+            - --collector.process_idle
+          ports:
+            - name: metrics
+              containerPort: 9187
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9187
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9187
+            initialDelaySeconds: 10
+            periodSeconds: 5

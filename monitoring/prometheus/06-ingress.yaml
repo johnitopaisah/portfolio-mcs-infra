@@ -1,0 +1,41 @@
+# Prometheus public ingress — prom-dashboard.johnisah.org
+#
+# DNS PREREQUISITE (do before applying):
+#   Add an A record in Cloudflare:
+#     Name: prom-dashboard
+#     Value: <same IP as johnisah.org>
+#   Get IP: kubectl get svc -n kube-system | grep traefik
+#
+# Authentication: None (public read-only access — configure auth in Prometheus if needed)
+# TLS: auto-provisioned by cert-manager (letsencrypt-prod)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus-ingress
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - prom-dashboard.johnisah.org
+      secretName: prometheus-tls
+  rules:
+    - host: prom-dashboard.johnisah.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090

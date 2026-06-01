@@ -1,0 +1,169 @@
+{
+  "dashboard": {
+    "title": "Job Aggregation System",
+    "uid": "job-agg-system",
+    "timezone": "UTC",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Jobs Ingested (Last 24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(jobs_ingested_total[24h])",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "New vs Duplicate Jobs",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(increase(jobs_new_total[24h]))",
+            "legendValues": ["New"],
+            "refId": "A"
+          },
+          {
+            "expr": "sum(increase(jobs_duplicate_total[24h]))",
+            "legendValues": ["Duplicate"],
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Jobs by AI Decision",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(increase(jobs_filtered_total{decision='KEEP'}[24h]))",
+            "legendValues": ["Keep"],
+            "refId": "A"
+          },
+          {
+            "expr": "sum(increase(jobs_filtered_total{decision='REVIEW'}[24h]))",
+            "legendValues": ["Review"],
+            "refId": "B"
+          },
+          {
+            "expr": "sum(increase(jobs_filtered_total{decision='DROP'}[24h]))",
+            "legendValues": ["Drop"],
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Ingestion Duration (p50, p95, p99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.5, job_ingestion_duration_seconds)",
+            "legendValues": ["p50"],
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, job_ingestion_duration_seconds)",
+            "legendValues": ["p95"],
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, job_ingestion_duration_seconds)",
+            "legendValues": ["p99"],
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Job Relevance Score Distribution",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "job_relevance_score_bucket",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Alerts Sent (24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(job_alerts_sent_total{status='success'}[24h]))",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Alerts by Channel",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "sum by (channel) (increase(job_alerts_sent_total[24h]))",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Active Jobs in Database",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "jobs_active_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Users with Job Preferences",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "users_with_job_preferences_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "API Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(jobs_api_requests_total[5m])",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "API Latency (p50, p95, p99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.5, jobs_api_duration_seconds)",
+            "legendValues": ["p50"],
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, jobs_api_duration_seconds)",
+            "legendValues": ["p95"],
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, jobs_api_duration_seconds)",
+            "legendValues": ["p99"],
+            "refId": "C"
+          }
+        ]
+      }
+    ]
+  }
+}

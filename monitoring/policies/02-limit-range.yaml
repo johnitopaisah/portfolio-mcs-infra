@@ -1,0 +1,30 @@
+# # ============================================================
+# #  LimitRange — monitoring namespace
+# #
+# #  Provides default requests/limits for any container that does
+# #  not set them explicitly. Prevents unbounded pods consuming
+# #  unlimited cluster resources.
+# # ============================================================
+# apiVersion: v1
+# kind: LimitRange
+# metadata:
+#   name: monitoring-limits
+#   namespace: monitoring
+#   labels:
+#     app.kubernetes.io/part-of: portfolio-monitoring
+#     app.kubernetes.io/managed-by: argocd
+# spec:
+#   limits:
+#     - type: Container
+#       min:
+#         cpu:    "10m"
+#         memory: "32Mi"
+#       max:
+#         cpu:    "2"
+#         memory: "3Gi"
+#       defaultRequest:
+#         cpu:    "25m"
+#         memory: "64Mi"
+#       default:
+#         cpu:    "100m"
+#         memory: "128Mi"

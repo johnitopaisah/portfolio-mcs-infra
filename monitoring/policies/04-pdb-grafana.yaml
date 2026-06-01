@@ -1,0 +1,18 @@
+# PodDisruptionBudget — Grafana
+# Ensures at least one Grafana instance remains available during
+# node maintenance so dashboard access is not interrupted.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: grafana

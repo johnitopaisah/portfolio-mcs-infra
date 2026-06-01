@@ -1,0 +1,33 @@
+# # ============================================================
+# #  ResourceQuota — monitoring namespace
+# #
+# #  Cluster capacity: 2 × 6 vCPU / 16Gi nodes = 12,000m / 32Gi total
+# #
+# #  Current monitoring pod totals:
+# #    prometheus          req: 200m/512Mi   lim: 1000m/2Gi
+# #    grafana             req: 100m/128Mi   lim:  500m/512Mi
+# #    alertmanager        req:  25m/ 64Mi   lim:  100m/128Mi
+# #    postgres-exporter   req:  25m/ 32Mi   lim:  100m/128Mi
+# #    node-exporter ×2    req:  50m/128Mi   lim:  200m/256Mi
+# #    kube-state-metrics  req:  25m/ 64Mi   lim:  200m/256Mi
+# #    subtotal            req: 425m/928Mi   lim: 2100m/3280Mi
+# #
+# #  Quota = subtotal × 1.5 growth headroom
+# # ============================================================
+# apiVersion: v1
+# kind: ResourceQuota
+# metadata:
+#   name: monitoring-quota
+#   namespace: monitoring
+#   labels:
+#     app.kubernetes.io/part-of: portfolio-monitoring
+#     app.kubernetes.io/managed-by: argocd
+# spec:
+#   hard:
+#     requests.cpu:    "1"
+#     requests.memory: "2Gi"
+#     limits.cpu:      "4"
+#     limits.memory:   "6Gi"
+#     pods:            "15"
+#     services:        "10"
+#     persistentvolumeclaims: "2"

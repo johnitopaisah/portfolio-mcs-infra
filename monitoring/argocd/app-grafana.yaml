@@ -1,0 +1,43 @@
+# ============================================================
+#  ArgoCD Application — monitoring/grafana
+#
+#  Sync wave 5: last to start — dashboards reference Prometheus
+#  as datasource, so Prometheus must be ready first.
+#
+#  prune: false — ArgoCD must NEVER cascade-delete the Grafana PVC.
+#  grafana-pvc stores persistent dashboard state and plugin data.
+#  No finalizer for the same reason.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-grafana
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring-grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  # No finalizer — ArgoCD must never cascade-delete Grafana PVC
+spec:
+  project: portfolio-monitoring
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs
+    targetRevision: develop
+    path: monitoring/grafana
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false   # protects grafana-pvc from accidental deletion
+    syncOptions:
+      - CreateNamespace=false
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: grafana
+      jsonPointers:
+        - /spec/replicas   # future-safe if HPA is added later

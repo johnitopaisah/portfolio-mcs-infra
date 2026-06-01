@@ -1,0 +1,61 @@
+# ============================================================
+#  NetworkPolicy — monitoring namespace (default-deny-all)
+#
+#  Mirrors the portfolio pattern: deny all ingress/egress by
+#  default, then open only what monitoring pods actually need.
+#
+#  Cross-namespace note: the ingress rule that allows Prometheus
+#  and postgres-exporter to reach the portfolio namespace is a
+#  NetworkPolicy on the PORTFOLIO side (k8s/policies/04-network-
+#  policy.yaml lines allow-api and allow-db). Do not duplicate it
+#  here — it would be rejected because this app targets the
+#  monitoring namespace only.
+#
+#  CNI note: kindnet does not enforce NetworkPolicy. These rules
+#  become active when the CNI is switched to Calico or Cilium.
+# ============================================================
+
+# ── 0. Default deny-all ──────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+
+# ── 1. Allow Traefik ingress to Grafana and Prometheus ───────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-ingress
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [grafana, prometheus]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 3000   # grafana
+        - protocol: TCP
+          port: 9090   # prometheus

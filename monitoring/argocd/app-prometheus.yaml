@@ -1,0 +1,51 @@
+# ============================================================
+#  ArgoCD Application — monitoring/prometheus
+#
+#  Sync wave 2: data source for the entire stack, must be up
+#  before exporters, alertmanager, and grafana.
+#
+#  prune: false — ArgoCD must NEVER cascade-delete the PVC.
+#  Losing prometheus-pvc means losing all metric history.
+#  No finalizer for the same reason.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-prometheus
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring-prometheus
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  # No finalizer — ArgoCD must never cascade-delete Prometheus PVC
+spec:
+  project: portfolio-monitoring
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs
+    targetRevision: develop
+    path: monitoring/prometheus
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false   # protects prometheus-pvc from accidental deletion
+    syncOptions:
+      - CreateNamespace=false
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: prometheus
+      jsonPointers:
+        - /spec/replicas   # future-safe if HPA is added later
+    - group: ""
+      kind: PersistentVolumeClaim
+      name: prometheus-pvc
+      jsonPointers:
+        - /spec/storageClassName   # immutable after creation
+        - /spec/accessModes        # immutable after creation
+        - /spec/resources          # resize forbidden unless storage class supports it
+        - /spec/volumeMode         # immutable after creation

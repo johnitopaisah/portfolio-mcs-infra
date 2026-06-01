@@ -1,0 +1,34 @@
+# ============================================================
+#  ArgoCD Application — monitoring/alertmanager
+#
+#  Sync wave 4: connects to Prometheus for alert routing.
+#  Alertmanager uses emptyDir for storage — no PVC risk on prune.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-alertmanager
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring-alertmanager
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: portfolio-monitoring
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs
+    targetRevision: develop
+    path: monitoring/alertmanager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

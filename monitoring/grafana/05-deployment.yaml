@@ -1,0 +1,177 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/part-of: portfolio-monitoring
+        app.kubernetes.io/component: visualization
+    spec:
+      serviceAccountName: grafana
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        fsGroup: 472
+
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.36
+          command: ["sh", "-c", "chown -R 472:472 /var/lib/grafana"]
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.4.1
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-secret
+                  key: GRAFANA_ADMIN_USER
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-secret
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GF_SECURITY_DISABLE_GRAVATAR
+              value: "true"
+            - name: GF_SECURITY_COOKIE_SECURE
+              value: "true"
+            - name: GF_SECURITY_COOKIE_SAMESITE
+              value: "strict"
+            - name: GF_SECURITY_STRICT_TRANSPORT_SECURITY
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "false"
+            - name: GF_SECURITY_ALLOW_EMBEDDING
+              value: "true"
+            - name: GF_SERVER_DOMAIN
+              value: "grafana.johnisah.com"
+            - name: GF_SERVER_ROOT_URL
+              value: "https://grafana.johnisah.com"
+            - name: GF_SERVER_HTTP_PORT
+              value: "3000"
+            - name: GF_UI_DEFAULT_THEME
+              value: "dark"
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_PATHS_PROVISIONING
+              value: "/etc/grafana/provisioning"
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard-01
+              mountPath: /var/lib/grafana/dashboards/01-system-overview.json
+              subPath: 01-system-overview.json
+            - name: dashboard-02
+              mountPath: /var/lib/grafana/dashboards/02-api-performance.json
+              subPath: 02-api-performance.json
+            - name: dashboard-03
+              mountPath: /var/lib/grafana/dashboards/03-database-health.json
+              subPath: 03-database-health.json
+            - name: dashboard-04
+              mountPath: /var/lib/grafana/dashboards/04-infrastructure.json
+              subPath: 04-infrastructure.json
+            - name: dashboard-05
+              mountPath: /var/lib/grafana/dashboards/05-business-metrics.json
+              subPath: 05-business-metrics.json
+            - name: dashboard-06
+              mountPath: /var/lib/grafana/dashboards/06-alerts-slo.json
+              subPath: 06-alerts-slo.json
+            # ── Visitor Analytics dashboard (07) ──────────────
+            - name: dashboard-07
+              mountPath: /var/lib/grafana/dashboards/07-visitor-analytics.json
+              subPath: 07-visitor-analytics.json
+
+      volumes:
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: grafana-pvc
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard-01
+          configMap:
+            name: grafana-dashboard-01-overview
+        - name: dashboard-02
+          configMap:
+            name: grafana-dashboard-02-api
+        - name: dashboard-03
+          configMap:
+            name: grafana-dashboard-03-database
+        - name: dashboard-04
+          configMap:
+            name: grafana-dashboard-04-infrastructure
+        - name: dashboard-05
+          configMap:
+            name: grafana-dashboard-05-business
+        - name: dashboard-06
+          configMap:
+            name: grafana-dashboard-06-alerts
+        # ── Visitor Analytics dashboard (07) ──────────────────
+        - name: dashboard-07
+          configMap:
+            name: grafana-dashboard-07-visitors

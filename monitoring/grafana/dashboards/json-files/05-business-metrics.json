@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-05-business
+  namespace: monitoring
+  labels:
+    app: grafana
+    dashboard: business-metrics
+data:
+  05-business-metrics.json: |
+    {
+      "uid": "portfolio-business",
+      "title": "Business Metrics",
+      "description": "Portfolio-specific metrics — contact submissions, auth events, content activity",
+      "tags": ["portfolio-mcs", "business"],
+      "timezone": "browser",
+      "refresh": "1m",
+      "time": { "from": "now-24h", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "stat", "title": "Total Contact Submissions",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "area" },
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+          "targets": [{ "expr": "sum(portfolio_contact_submissions_total{status=\"success\"})", "legendFormat": "Total" }]
+        },
+        {
+          "id": 2, "type": "stat", "title": "Submissions Today",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": 0 }, { "color": "green", "value": 1 }] } } },
+          "targets": [{ "expr": "sum(increase(portfolio_contact_submissions_total{status=\"success\"}[24h]))", "legendFormat": "Today" }]
+        },
+        {
+          "id": 3, "type": "stat", "title": "Auth Success Total",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+          "targets": [{ "expr": "sum(portfolio_auth_attempts_total{result=\"success\"})", "legendFormat": "Successful logins" }]
+        },
+        {
+          "id": 4, "type": "stat", "title": "Auth Failures (24h)",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 10 }] } } },
+          "targets": [{ "expr": "sum(increase(portfolio_auth_attempts_total{result=\"failure\"}[24h]))", "legendFormat": "Failures" }]
+        },
+        {
+          "id": 5, "type": "stat", "title": "Profile Views (24h)",
+          "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+          "targets": [{ "expr": "sum(increase(portfolio_profile_requests_total[24h]))", "legendFormat": "Profile views" }]
+        },
+        {
+          "id": 6, "type": "stat", "title": "Projects Views (24h)",
+          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+          "targets": [{ "expr": "sum(increase(portfolio_projects_requests_total[24h]))", "legendFormat": "Projects views" }]
+        },
+        {
+          "id": 7, "type": "timeseries", "title": "Contact Submissions over Time",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "sum(increase(portfolio_contact_submissions_total{status=\"success\"}[1h]))", "legendFormat": "Success" },
+            { "expr": "sum(increase(portfolio_contact_submissions_total{status=\"error\"}[1h]))", "legendFormat": "Error" },
+            { "expr": "sum(increase(portfolio_contact_submissions_total{status=\"rate_limited\"}[1h]))", "legendFormat": "Rate limited" }
+          ]
+        },
+        {
+          "id": 8, "type": "timeseries", "title": "Auth Attempts over Time",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "sum(increase(portfolio_auth_attempts_total{result=\"success\"}[1h]))", "legendFormat": "Success" },
+            { "expr": "sum(increase(portfolio_auth_attempts_total{result=\"failure\"}[1h]))", "legendFormat": "Failure (possible brute-force)" }
+          ]
+        },
+        {
+          "id": 9, "type": "barchart", "title": "API Endpoint Popularity (last 24h)",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" } } },
+          "options": { "orientation": "horizontal" },
+          "targets": [{
+            "expr": "topk(10, sum by (route) (increase(portfolio_http_requests_total[24h])))",
+            "legendFormat": "{{route}}",
+            "instant": true
+          }]
+        },
+        {
+          "id": 10, "type": "barchart", "title": "Content Created by Type (all time)",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none" } },
+          "options": { "orientation": "horizontal" },
+          "targets": [{
+            "expr": "sum by (type) (portfolio_content_created_total)",
+            "legendFormat": "{{type}}",
+            "instant": true
+          }]
+        },
+        {
+          "id": 11, "type": "timeseries", "title": "Profile & Projects Public Traffic",
+          "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "reqpm", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "sum(rate(portfolio_profile_requests_total[5m])) * 60", "legendFormat": "Profile req/min" },
+            { "expr": "sum(rate(portfolio_projects_requests_total[5m])) * 60", "legendFormat": "Projects req/min" },
+            { "expr": "sum(rate(portfolio_contact_submissions_total[5m])) * 60", "legendFormat": "Contact submissions/min" }
+          ]
+        }
+      ],
+      "schemaVersion": 38,
+      "version": 1
+    }

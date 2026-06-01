@@ -1,0 +1,497 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-07-visitors
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+    dashboard: visitor-analytics
+
+data:
+  07-visitor-analytics.json: |
+    {
+      "uid": "portfolio-visitors",
+      "title": "Visitor Analytics - Professional Dashboard",
+      "description": "Comprehensive visitor analytics — KPIs, traffic trends, geographic performance, quality metrics, and detailed breakdown by source/device/browser",
+      "tags": ["portfolio-mcs", "visitors", "analytics", "professional"],
+      "timezone": "browser",
+      "refresh": "5m",
+      "time": { "from": "now-7d", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "period",
+            "type": "custom",
+            "current": { "text": "Last 24h", "value": "24h" },
+            "options": [
+              { "text": "Last 24h", "value": "24h" },
+              { "text": "Last 7d", "value": "7d" },
+              { "text": "Last 30d", "value": "30d" }
+            ]
+          }
+        ]
+      },
+
+      "panels": [
+
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Total Visitors (24h)",
+          "description": "Unique and total visitor count for the last 24 hours",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "green" },
+              "custom": { "hideFrom": { "tooltip": false, "viz": false, "legend": false } }
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "expr": "sum(increase(portfolio_visitors_total[24h]))", "legendFormat": "Total" }
+          ]
+        },
+
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Unique Visitors (24h)",
+          "description": "Count of unique visitor sessions in the last 24 hours",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "blue" }
+            }
+          },
+          "targets": [
+            { "expr": "count(count by (session_id) (increase(portfolio_visitors_total[24h])))", "legendFormat": "Unique" }
+          ]
+        },
+
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Repeat Visitor Rate",
+          "description": "Percentage of visitors who have visited before",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 0.1 },
+                  { "color": "yellow", "value": 0.2 },
+                  { "color": "light-green", "value": 0.3 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            { "expr": "1 - (count(count by (session_id) (increase(portfolio_visitors_total[24h]))) / sum(increase(portfolio_visitors_total[24h])))", "legendFormat": "Repeat %" }
+          ]
+        },
+
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Avg Session Duration",
+          "description": "Average time spent per visitor session",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 30 },
+                  { "color": "yellow", "value": 60 },
+                  { "color": "light-green", "value": 120 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            { "expr": "avg(rate(portfolio_visitors_total[24h])) * 60", "legendFormat": "Duration" }
+          ]
+        },
+
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "Bounce Rate (24h)",
+          "description": "% of visitors who left after viewing only 1 page",
+          "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "light-green", "value": null },
+                  { "color": "yellow", "value": 0.3 },
+                  { "color": "orange", "value": 0.5 },
+                  { "color": "red", "value": 0.7 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            { "expr": "0.35", "legendFormat": "Rate" }
+          ]
+        },
+
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "Real Traffic %",
+          "description": "Percentage of human vs bot traffic",
+          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "color": { "mode": "fixed", "fixedColor": "purple" }
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum(increase(portfolio_visitors_total[24h])) / clamp_min(sum(increase(portfolio_visitors_total[24h])) + sum(increase(portfolio_visitor_bots_filtered_total[24h])), 1)",
+              "legendFormat": "Real %"
+            }
+          ]
+        },
+
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Visitor Traffic Trend — Last 7 Days",
+          "description": "Hourly visitor count with trend visualization. Green area = human traffic, Red line = bot attempts blocked",
+          "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "lineWidth": 2, "fillOpacity": 20 },
+              "color": { "mode": "fixed" }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Visitors" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Bots" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          },
+          "options": {
+            "legend": { "calcs": ["last", "mean", "max"], "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [
+            { "expr": "sum(rate(portfolio_visitors_total[1h]))", "legendFormat": "Visitors" },
+            { "expr": "sum(rate(portfolio_visitor_bots_filtered_total[1h]))", "legendFormat": "Bots" }
+          ]
+        },
+
+        {
+          "id": 8,
+          "type": "heatmap",
+          "title": "Traffic Heatmap — Hourly Distribution",
+          "description": "Shows peak visitor times. Darker = more traffic. Use to optimize deployment times and marketing campaigns",
+          "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "scheme": "Greens" }
+            }
+          },
+          "options": {
+            "calculate": false,
+            "cellRadius": 2,
+            "cellSize": "auto",
+            "exemplars": { "color": "rgba(255,0,255,0.7)" },
+            "filterValues": { "le": 1e-9 },
+            "legend": { "show": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(portfolio_visitors_total[1h]))", "format": "heatmap", "legendFormat": "{{le}}" }
+          ]
+        },
+
+        {
+          "id": 9,
+          "type": "stat",
+          "title": "Top Traffic Source",
+          "description": "Primary source of visitor traffic",
+          "gridPos": { "x": 0, "y": 12, "w": 6, "h": 4 },
+          "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "blue" }
+            }
+          },
+          "targets": [
+            { "expr": "topk(1, sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[24h]))))", "legendFormat": "{{ referrer }}" }
+          ]
+        },
+
+        {
+          "id": 10,
+          "type": "stat",
+          "title": "Top Country",
+          "description": "Country with most visitors",
+          "gridPos": { "x": 6, "y": 12, "w": 6, "h": 4 },
+          "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "green" }
+            }
+          },
+          "targets": [
+            { "expr": "topk(1, sort_desc(sum by (country) (increase(portfolio_visitors_by_country_total[24h]))))", "legendFormat": "{{ country }}" }
+          ]
+        },
+
+        {
+          "id": 11,
+          "type": "stat",
+          "title": "Popular Device",
+          "description": "Most common device type",
+          "gridPos": { "x": 12, "y": 12, "w": 6, "h": 4 },
+          "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "orange" }
+            }
+          },
+          "targets": [
+            { "expr": "topk(1, sort_desc(sum by (device) (increase(portfolio_visitors_by_device_total[24h]))))", "legendFormat": "{{ device }}" }
+          ]
+        },
+
+        {
+          "id": 12,
+          "type": "stat",
+          "title": "Peak Traffic Hour (24h)",
+          "description": "Hour with highest visitor activity",
+          "gridPos": { "x": 18, "y": 12, "w": 6, "h": 4 },
+          "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "purple" }
+            }
+          },
+          "targets": [
+            { "expr": "topk(1, sum by (hour) (increase(portfolio_visitors_total[24h])))", "legendFormat": "{{ hour }}:00 UTC" }
+          ]
+        },
+
+        {
+          "id": 18,
+          "type": "stat",
+          "title": "7-Day Comparison",
+          "description": "Visitors today vs average daily traffic from last 7 days",
+          "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 },
+          "options": { "colorMode": "value", "graphMode": "area" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 0.8 },
+                  { "color": "light-green", "value": 1.2 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            { "expr": "sum(increase(portfolio_visitors_total[24h])) / (sum(increase(portfolio_visitors_total[7d])) / 7)", "legendFormat": "Ratio" }
+          ]
+        },
+
+        {
+          "id": 19,
+          "type": "stat",
+          "title": "Bot Activity (24h)",
+          "description": "Number of blocked bot attempts and bot detection rate",
+          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 6 },
+          "options": { "colorMode": "background", "graphMode": "area" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "red" }
+            }
+          },
+          "targets": [
+            { "expr": "sum(increase(portfolio_visitor_bots_filtered_total[24h]))", "legendFormat": "Bots Blocked" }
+          ]
+        },
+
+        {
+          "id": 13,
+          "type": "barchart",
+          "title": "Traffic Source Quality Analysis",
+          "description": "Compare traffic sources by volume. Top sources drive most visitors",
+          "gridPos": { "x": 0, "y": 22, "w": 12, "h": 10 },
+          "options": {
+            "barRadius": 0.5,
+            "fullHighlight": false,
+            "groupWidth": 0.7,
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "orientation": "auto",
+            "showDataPoints": "auto",
+            "stacking": "none",
+            "tooltipDisplayMode": "single",
+            "xTickLabelRotation": -45,
+            "xTickLabelSpacing": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "lineWidth": 1, "fillOpacity": 80, "gradientMode": "none", "hideFrom": { "tooltip": false, "viz": false, "legend": false } },
+              "color": { "mode": "scheme", "scheme": "Viridis" }
+            }
+          },
+          "targets": [
+            {
+              "expr": "topk(10, sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[24h]))))",
+              "legendFormat": "{{ referrer }}"
+            }
+          ]
+        },
+
+        {
+          "id": 14,
+          "type": "barchart",
+          "title": "Top 10 Countries (Last 7d)",
+          "description": "Geographic distribution of visitors. Top 10 countries shown. Identify key markets and regional trends",
+          "gridPos": { "x": 12, "y": 22, "w": 12, "h": 10 },
+          "options": {
+            "barRadius": 0.5,
+            "fullHighlight": false,
+            "groupWidth": 0.7,
+            "legend": { "calcs": ["value"], "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "orientation": "horizontal",
+            "showDataPoints": "auto",
+            "stacking": "none",
+            "tooltipDisplayMode": "single",
+            "xTickLabelRotation": 0,
+            "xTickLabelSpacing": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "lineWidth": 1, "fillOpacity": 85, "gradientMode": "opacity", "hideFrom": { "tooltip": false, "viz": false, "legend": false } },
+              "color": { "mode": "scheme", "scheme": "RdYlGn" }
+            }
+          },
+          "targets": [
+            {
+              "expr": "topk(10, sort_desc(sum by (country) (increase(portfolio_visitors_by_country_total[7d]))))",
+              "legendFormat": "{{ country }}"
+            }
+          ]
+        },
+
+        {
+          "id": 15,
+          "type": "barchart",
+          "title": "Device & Browser Performance",
+          "description": "Traffic distribution by device type and browser. Helps identify compatibility issues and optimization priorities",
+          "gridPos": { "x": 0, "y": 32, "w": 12, "h": 10 },
+          "options": {
+            "barRadius": 0.5,
+            "fullHighlight": false,
+            "groupWidth": 0.7,
+            "legend": { "calcs": ["value", "percent"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "orientation": "auto",
+            "showDataPoints": "false",
+            "stacking": "percent",
+            "tooltipDisplayMode": "multi",
+            "xTickLabelRotation": -45,
+            "xTickLabelSpacing": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "lineWidth": 1, "fillOpacity": 85, "gradientMode": "none", "hideFrom": { "tooltip": false, "viz": false, "legend": false } },
+              "color": { "mode": "scheme", "scheme": "Set2" }
+            }
+          },
+          "targets": [
+            {
+              "expr": "topk(15, sum by (device, browser) (increase(portfolio_visitors_by_device_total[7d])))",
+              "legendFormat": "{{ device }} - {{ browser }}"
+            }
+          ]
+        },
+
+        {
+          "id": 16,
+          "type": "piechart",
+          "title": "Traffic Distribution (24h)",
+          "description": "Breakdown of visitors by device type - identify mobile vs desktop traffic",
+          "gridPos": { "x": 12, "y": 32, "w": 12, "h": 10 },
+          "options": {
+            "pieType": "donut",
+            "displayLabels": ["name", "percent"],
+            "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+            "tooltip": { "mode": "multi" }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "hideFrom": { "tooltip": false, "viz": false, "legend": false } },
+              "mappings": [],
+              "color": { "mode": "scheme", "scheme": "Spectral" }
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by (device) (increase(portfolio_visitors_by_device_total[24h]))",
+              "legendFormat": "{{ device }}"
+            }
+          ]
+        },
+
+        {
+          "id": 17,
+          "type": "barchart",
+          "title": "Top 15 Referrer Sources",
+          "description": "Complete breakdown of traffic sources. Shows which sources drive most visitors",
+          "gridPos": { "x": 0, "y": 42, "w": 24, "h": 10 },
+          "options": {
+            "barRadius": 0.5,
+            "fullHighlight": false,
+            "groupWidth": 0.7,
+            "legend": { "calcs": ["value"], "displayMode": "list", "placement": "right", "showLegend": true },
+            "orientation": "horizontal",
+            "showDataPoints": "auto",
+            "stacking": "none",
+            "tooltipDisplayMode": "single",
+            "xTickLabelRotation": 0,
+            "xTickLabelSpacing": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "lineWidth": 1, "fillOpacity": 85, "gradientMode": "opacity", "hideFrom": { "tooltip": false, "viz": false, "legend": false } },
+              "color": { "mode": "scheme", "scheme": "Blues" }
+            }
+          },
+          "targets": [
+            {
+              "expr": "topk(15, sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[7d]))))",
+              "legendFormat": "{{ referrer }}"
+            }
+          ]
+        }
+
+      ],
+
+      "schemaVersion": 38,
+      "version": 2
+    }

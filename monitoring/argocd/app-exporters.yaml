@@ -1,0 +1,42 @@
+# ============================================================
+#  ArgoCD Application — monitoring/exporters
+#
+#  Sync wave 3: all three exporters in one application.
+#  They have no stateful data and are safe to prune.
+#
+#  Includes cluster-scoped RBAC for:
+#    - prometheus (ClusterRole + ClusterRoleBinding in 01-rbac.yaml)
+#    - kube-state-metrics (ClusterRole + ClusterRoleBinding in 01-all.yaml)
+#  The AppProject clusterResourceWhitelist permits these.
+#
+#  Note: prometheus RBAC lives in monitoring/prometheus/ and is
+#  managed by app-prometheus, not here.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-exporters
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring-exporters
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: portfolio-monitoring
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs
+    targetRevision: develop
+    path: monitoring/exporters
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

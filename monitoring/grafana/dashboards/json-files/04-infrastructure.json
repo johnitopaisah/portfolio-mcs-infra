@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-04-infrastructure
+  namespace: monitoring
+  labels:
+    app: grafana
+    dashboard: infrastructure
+data:
+  04-infrastructure.json: |
+    {
+      "uid": "portfolio-infra",
+      "title": "Kubernetes Infrastructure",
+      "description": "Node resources, pod health, container restarts, PVC usage across all 3 nodes",
+      "tags": ["portfolio-mcs", "kubernetes", "infrastructure"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "stat", "title": "Running Pods (portfolio ns)",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 3 }, { "color": "green", "value": 5 }] } } },
+          "targets": [{ "expr": "count(kube_pod_status_phase{namespace=\"portfolio\",phase=\"Running\"} == 1) or vector(0)", "legendFormat": "Running" }]
+        },
+        {
+          "id": 2, "type": "stat", "title": "Pending Pods",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] } } },
+          "targets": [{ "expr": "count(kube_pod_status_phase{namespace=\"portfolio\",phase=\"Pending\"} == 1) or vector(0)", "legendFormat": "Pending" }]
+        },
+        {
+          "id": 3, "type": "stat", "title": "Failed Pods",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] } } },
+          "targets": [{ "expr": "count(kube_pod_status_phase{namespace=\"portfolio\",phase=\"Failed\"} == 1) or vector(0)", "legendFormat": "Failed" }]
+        },
+        {
+          "id": 4, "type": "stat", "title": "Cluster Nodes Ready",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 3 }] } } },
+          "targets": [{ "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})", "legendFormat": "Nodes ready" }]
+        },
+        {
+          "id": 5, "type": "stat", "title": "Total Container Restarts (24h)",
+          "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } } },
+          "targets": [{ "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"portfolio\"}[24h]))", "legendFormat": "Restarts" }]
+        },
+        {
+          "id": 6, "type": "stat", "title": "HPA Desired Replicas",
+          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+          "targets": [{ "expr": "sum(kube_horizontalpodautoscaler_status_current_replicas{namespace=\"portfolio\"})", "legendFormat": "Replicas" }]
+        },
+        {
+          "id": 7, "type": "timeseries", "title": "Node CPU Usage per Node",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "1 - rate(node_cpu_seconds_total{mode=\"idle\"}[5m])", "legendFormat": "{{instance}}" }]
+        },
+        {
+          "id": 8, "type": "timeseries", "title": "Node Memory Usage per Node",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)", "legendFormat": "{{instance}}" }]
+        },
+        {
+          "id": 9, "type": "timeseries", "title": "CPU: Requested vs Actual (portfolio pods)",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "cores", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"portfolio\",container!=\"\"}[5m]))", "legendFormat": "{{pod}} actual" },
+            { "expr": "sum by (pod) (kube_pod_container_resource_requests{namespace=\"portfolio\",resource=\"cpu\"})", "legendFormat": "{{pod}} requested" }
+          ]
+        },
+        {
+          "id": 10, "type": "timeseries", "title": "Memory: Requested vs Actual (portfolio pods)",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"portfolio\",container!=\"\"})", "legendFormat": "{{pod}} actual" },
+            { "expr": "sum by (pod) (kube_pod_container_resource_requests{namespace=\"portfolio\",resource=\"memory\"})", "legendFormat": "{{pod}} requested" }
+          ]
+        },
+        {
+          "id": 11, "type": "table", "title": "Container Restarts by Pod",
+          "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+          "options": { "sortBy": [{ "displayName": "Restarts", "desc": true }] },
+          "targets": [{
+            "expr": "sum by (pod, container) (kube_pod_container_status_restarts_total{namespace=\"portfolio\"})",
+            "legendFormat": "{{pod}} / {{container}}",
+            "instant": true,
+            "format": "table"
+          }]
+        },
+        {
+          "id": 12, "type": "timeseries", "title": "Node Disk I/O",
+          "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "Bps", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "sum by (instance) (rate(node_disk_read_bytes_total[5m]))", "legendFormat": "{{instance}} read" },
+            { "expr": "sum by (instance) (rate(node_disk_written_bytes_total[5m]))", "legendFormat": "{{instance}} write" }
+          ]
+        },
+        {
+          "id": 13, "type": "timeseries", "title": "Network I/O (all nodes)",
+          "gridPos": { "x": 0, "y": 28, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "Bps", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*\"}[5m]))", "legendFormat": "Received" },
+            { "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*\"}[5m]))", "legendFormat": "Transmitted" }
+          ]
+        },
+        {
+          "id": 14, "type": "gauge", "title": "PVC Usage — portfolio-db",
+          "gridPos": { "x": 12, "y": 28, "w": 6, "h": 4 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.70 }, { "color": "red", "value": 0.90 }] } } },
+          "targets": [{ "expr": "1 - (kubelet_volume_stats_available_bytes{persistentvolumeclaim=\"portfolio-db-pvc\"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=\"portfolio-db-pvc\"})", "legendFormat": "DB PVC" }]
+        },
+        {
+          "id": 15, "type": "gauge", "title": "PVC Usage — prometheus",
+          "gridPos": { "x": 18, "y": 28, "w": 6, "h": 4 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.70 }, { "color": "red", "value": 0.90 }] } } },
+          "targets": [{ "expr": "1 - (kubelet_volume_stats_available_bytes{persistentvolumeclaim=\"prometheus-pvc\"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=\"prometheus-pvc\"})", "legendFormat": "Prometheus PVC" }]
+        }
+      ],
+      "schemaVersion": 38,
+      "version": 2
+    }

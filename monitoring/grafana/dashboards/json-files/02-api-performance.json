@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-02-api
+  namespace: monitoring
+  labels:
+    app: grafana
+    dashboard: api-performance
+data:
+  02-api-performance.json: |
+    {
+      "uid": "portfolio-api-perf",
+      "title": "API Performance",
+      "description": "HTTP request rates, latency percentiles, error breakdown by endpoint",
+      "tags": ["portfolio-mcs", "api"],
+      "timezone": "browser",
+      "refresh": "15s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "timeseries", "title": "Request Rate by Route",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "sum by (route) (rate(portfolio_http_requests_total[2m]))", "legendFormat": "{{route}}" }]
+        },
+        {
+          "id": 2, "type": "timeseries", "title": "Latency Percentiles (all routes)",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(portfolio_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+            { "expr": "histogram_quantile(0.95, sum(rate(portfolio_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+            { "expr": "histogram_quantile(0.99, sum(rate(portfolio_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "id": 3, "type": "piechart", "title": "Status Code Distribution",
+          "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+          "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
+          "targets": [
+            { "expr": "sum(increase(portfolio_http_requests_total{status_code=~\"2..\"}[1h]))", "legendFormat": "2xx Success" },
+            { "expr": "sum(increase(portfolio_http_requests_total{status_code=~\"3..\"}[1h]))", "legendFormat": "3xx Redirect" },
+            { "expr": "sum(increase(portfolio_http_requests_total{status_code=~\"4..\"}[1h]))", "legendFormat": "4xx Client Error" },
+            { "expr": "sum(increase(portfolio_http_requests_total{status_code=~\"5..\"}[1h]))", "legendFormat": "5xx Server Error" }
+          ]
+        },
+        {
+          "id": 4, "type": "table", "title": "Top 10 Slowest Endpoints (p95)",
+          "gridPos": { "x": 8, "y": 8, "w": 16, "h": 8 },
+          "options": { "sortBy": [{ "displayName": "p95 Latency", "desc": true }] },
+          "fieldConfig": { "defaults": { "unit": "s" } },
+          "targets": [{
+            "expr": "topk(10, histogram_quantile(0.95, sum by (route, le) (rate(portfolio_http_request_duration_seconds_bucket[5m]))))",
+            "legendFormat": "{{route}}",
+            "instant": true,
+            "format": "table"
+          }]
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "5xx Errors by Route",
+          "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "sum by (route) (rate(portfolio_http_requests_total{status_code=~\"5..\"}[2m]))", "legendFormat": "{{route}}" }]
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "4xx Errors by Route",
+          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "sum by (route) (rate(portfolio_http_requests_total{status_code=~\"4..\"}[2m]))", "legendFormat": "{{route}}" }]
+        },
+        {
+          "id": 7, "type": "gauge", "title": "Requests In-Flight",
+          "gridPos": { "x": 0, "y": 24, "w": 6, "h": 4 },
+          "fieldConfig": { "defaults": { "min": 0, "max": 100, "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 50 }] } } },
+          "targets": [{ "expr": "portfolio_http_requests_in_flight" }]
+        },
+        {
+          "id": 8, "type": "timeseries", "title": "DB Query Duration (p95)",
+          "gridPos": { "x": 6, "y": 24, "w": 18, "h": 4 },
+          "fieldConfig": { "defaults": { "unit": "s" } },
+          "targets": [{ "expr": "histogram_quantile(0.95, sum by (operation, le) (rate(portfolio_db_query_duration_seconds_bucket[5m])))", "legendFormat": "{{operation}}" }]
+        }
+      ],
+      "schemaVersion": 38,
+      "version": 1
+    }

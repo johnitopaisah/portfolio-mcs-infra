@@ -1,0 +1,20 @@
+# PodDisruptionBudget — Prometheus
+# Prevents Prometheus from being evicted during node drains while
+# a rolling update or cluster maintenance is in progress.
+# Without this, a drain could delete the only prometheus-0 pod and
+# create a gap in metrics history.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/managed-by: argocd
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: prometheus

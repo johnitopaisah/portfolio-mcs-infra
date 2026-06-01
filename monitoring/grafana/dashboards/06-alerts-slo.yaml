@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-06-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+    dashboard: alerts-slo
+data:
+  06-alerts-slo.json: |
+    {
+      "uid": "portfolio-alerts-slo",
+      "title": "Alerts & SLO Tracking",
+      "description": "Active alerts, error budget, availability SLO, and alert history",
+      "tags": ["portfolio-mcs", "alerts", "slo"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-7d", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "alertlist", "title": "Active Alerts",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "options": {
+            "alertName": "", "dashboardAlerts": false,
+            "groupBy": ["alertname", "severity"],
+            "groupMode": "default",
+            "maxItems": 20,
+            "sortOrder": 1,
+            "stateFilter": { "firing": true, "pending": true, "noData": false, "error": true, "normal": false }
+          }
+        },
+        {
+          "id": 2, "type": "gauge", "title": "Availability SLO (30d)",
+          "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": true },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit", "min": 0.95, "max": 1,
+              "thresholds": { "steps": [{ "color": "red", "value": 0.95 }, { "color": "yellow", "value": 0.99 }, { "color": "green", "value": 0.999 }] }
+            }
+          },
+          "targets": [{
+            "expr": "avg_over_time(up{job=\"portfolio-api\"}[30d])",
+            "legendFormat": "Availability"
+          }]
+        },
+        {
+          "id": 3, "type": "gauge", "title": "Latency SLO — p95 < 500ms (1h)",
+          "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.90 }, { "color": "green", "value": 0.95 }] }
+            }
+          },
+          "targets": [{
+            "expr": "sum(rate(portfolio_http_request_duration_seconds_bucket{le=\"0.5\"}[1h])) / sum(rate(portfolio_http_request_duration_seconds_count[1h]))",
+            "legendFormat": "% requests < 500ms"
+          }]
+        },
+        {
+          "id": 4, "type": "stat", "title": "Error Budget Remaining (30d, 0.1% budget)",
+          "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "m",
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 60 }, { "color": "green", "value": 240 }] }
+            }
+          },
+          "targets": [{
+            "expr": "(0.001 * 30 * 24 * 60) - ((1 - avg_over_time(up{job=\"portfolio-api\"}[30d])) * 30 * 24 * 60)",
+            "legendFormat": "Budget remaining (min)"
+          }]
+        },
+        {
+          "id": 5, "type": "stat", "title": "Error Rate SLO — < 2% (1h)",
+          "gridPos": { "x": 18, "y": 4, "w": 6, "h": 4 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.02 }, { "color": "red", "value": 0.05 }] }
+            }
+          },
+          "targets": [{
+            "expr": "sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[1h])) / sum(rate(portfolio_http_requests_total[1h]))",
+            "legendFormat": "Error rate"
+          }]
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "API Availability over Time",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none", "min": 0, "max": 1,
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "green", "value": 1 }] },
+              "custom": { "fillOpacity": 20, "lineWidth": 2 }
+            }
+          },
+          "targets": [{ "expr": "up{job=\"portfolio-api\"}", "legendFormat": "API up" }]
+        },
+        {
+          "id": 7, "type": "timeseries", "title": "Error Rate over Time",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit", "min": 0,
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.02 }, { "color": "red", "value": 0.05 }] }
+            }
+          },
+          "targets": [{
+            "expr": "sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(portfolio_http_requests_total[5m]))",
+            "legendFormat": "5xx error rate"
+          }]
+        },
+        {
+          "id": 8, "type": "timeseries", "title": "p95 Latency vs SLO (500ms threshold)",
+          "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } } },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(portfolio_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95 latency" },
+            { "expr": "vector(0.5)", "legendFormat": "SLO threshold (500ms)" }
+          ]
+        }
+      ],
+      "schemaVersion": 38,
+      "version": 1
+    }

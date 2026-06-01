@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+        app.kubernetes.io/name: alertmanager
+        app.kubernetes.io/part-of: portfolio-monitoring
+        app.kubernetes.io/component: alerting
+    spec:
+      serviceAccountName: alertmanager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.27.0
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+            - --web.listen-address=0.0.0.0:9093
+
+          ports:
+            - name: http
+              containerPort: 9093
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9093
+            initialDelaySeconds: 15
+            periodSeconds: 15
+
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9093
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: smtp-password
+              mountPath: /etc/alertmanager-secrets/smtp-password
+              subPath: smtp-password
+            - name: alertmanager-data
+              mountPath: /alertmanager
+
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+        - name: smtp-password
+          secret:
+            secretName: alertmanager-smtp-secret
+        - name: alertmanager-data
+          emptyDir: {}

@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: portfolio-monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"   # create the project before any child Application
+spec:
+  description: "Monitoring stack — Prometheus, Grafana, Alertmanager, exporters"
+
+  sourceRepos:
+    - https://github.com/johnitopaisah/portfolio-mcs
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: argocd   # needed so child Applications can be created in argocd ns
+
+  # Cluster-scoped resources this project may touch.
+  # ClusterRole + ClusterRoleBinding are required for Prometheus and kube-state-metrics
+  # which need cluster-wide read access for service discovery and metrics collection.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+
+  # All namespace-scoped resource types are permitted within allowed destinations
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

@@ -1,0 +1,36 @@
+# ============================================================
+#  ArgoCD Application — monitoring/infisical
+#
+#  Sync wave 0: secrets must exist before any workload starts.
+#  Infisical CRDs are already cluster-installed by the infisical
+#  controller (infisical namespace) — ArgoCD only manages the
+#  InfisicalSecret CRs here.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-infisical
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring-infisical
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: portfolio-monitoring
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs
+    targetRevision: develop
+    path: monitoring/infisical
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

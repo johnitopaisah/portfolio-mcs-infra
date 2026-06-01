@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/managed-by: argocd
+data:
+  alertmanager.yml: |
+    global:
+      # SMTP via Zoho Mail — same server already used by the API
+      smtp_smarthost: 'smtppro.zoho.eu:465'
+      smtp_from:      'connect@johnisah.com'
+      smtp_auth_username: 'connect@johnisah.com'
+      smtp_auth_password_file: /etc/alertmanager-secrets/smtp-password
+      smtp_require_tls: false   # Port 465 is implicit TLS (SMTPS), not STARTTLS
+
+      # How long the condition must be clear before sending a RESOLVED notification.
+      # 15m prevents brief recoveries (DB up for 5 min then back down) from
+      # generating a resolved email followed immediately by another firing email.
+      resolve_timeout: 15m
+
+    # ── Routing tree ──────────────────────────────────────────
+    route:
+      receiver: 'default-email'
+      group_by: ['alertname', 'severity']
+      group_wait:      30s    # wait 30s for more alerts to group before sending
+      group_interval:  5m     # how long to wait before sending new alerts in same group
+      repeat_interval: 4h     # re-notify if still firing after 4 hours
+
+      routes:
+        # Critical alerts — send immediately, repeat every 2 hours
+        - matchers:
+            - severity = critical
+          receiver: 'critical-email'
+          group_wait:      10s
+          repeat_interval: 2h
+
+        # Warning alerts — batch, send every 2 hours
+        - matchers:
+            - severity = warning
+          receiver: 'warning-email'
+          group_wait:      5m
+          repeat_interval: 2h
+
+    # ── Receivers ────────────────────────────────────────────
+    receivers:
+      - name: 'default-email'
+        email_configs:
+          - to: 'connect@johnisah.com'
+            send_resolved: false
+            headers:
+              Subject: '[Portfolio MCS] {{ .GroupLabels.alertname }} — {{ .Status | toUpper }}'
+            html: |
+              <h2>{{ .GroupLabels.alertname }}</h2>
+              <p><strong>Status:</strong> {{ .Status | toUpper }}</p>
+              {{ range .Alerts }}
+              <hr>
+              <p><strong>Alert:</strong> {{ .Labels.alertname }}</p>
+              <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+              <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              {{ end }}
+              <hr>
+              <p><small>Portfolio MCS Monitoring — grafana.johnisah.com</small></p>
+
+      - name: 'critical-email'
+        email_configs:
+          - to: 'connect@johnisah.com'
+            send_resolved: true
+            headers:
+              Subject: '🔴 [CRITICAL] Portfolio MCS — {{ .GroupLabels.alertname }}'
+            html: |
+              <h2 style="color:#dc2626">🔴 CRITICAL ALERT</h2>
+              <h3>{{ .GroupLabels.alertname }}</h3>
+              {{ range .Alerts }}
+              <hr>
+              <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              {{ end }}
+              <hr>
+              <p><a href="https://grafana.johnisah.com">View Grafana Dashboard</a></p>
+
+      - name: 'warning-email'
+        email_configs:
+          - to: 'connect@johnisah.com'
+            send_resolved: false
+            headers:
+              Subject: '🟡 [WARNING] Portfolio MCS — {{ .GroupLabels.alertname }}'
+            html: |
+              <h2 style="color:#d97706">🟡 WARNING ALERT</h2>
+              <h3>{{ .GroupLabels.alertname }}</h3>
+              {{ range .Alerts }}
+              <hr>
+              <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              {{ end }}
+              <hr>
+              <p><a href="https://grafana.johnisah.com">View Grafana Dashboard</a></p>
+
+    # ── Inhibit rules ─────────────────────────────────────────
+    # Suppress warning-level alerts when the same resource has a critical alert.
+    inhibit_rules:
+      - source_matchers:
+          - severity = critical
+        target_matchers:
+          - severity = warning
+        equal: ['alertname']
