@@ -1,0 +1,58 @@
+node_modules/
+.pnp
+.pnp.js
+.next/
+out/
+build/
+dist/
+.claude
+
+bootstrapping/infisical*
+bootstrapping/nginx*
+
+# Env — NEVER commit these
+.env
+.env.local
+.env.production
+.env.*.local
+./api/.env.*
+./api/.env.example
+./api/.env.local
+./api/.env.production
+./api/.env.*.local
+
+JOB_*
+MONITORING_*
+monitoring/ARGOCD_MANAGEMENT_PLAN.md
+monitoring/DASHBOARD_DEPLOYMENT_GUIDE.md
+DEPLOY_*
+AGENTS.md
+
+job-logs.md
+cv/*
+prompts/*
+
+# OS
+.DS_Store
+*.log
+
+# K8s real secrets (keep only .example.yaml)
+k8s/secrets/*.yaml
+!k8s/secrets/*.example.yaml
+
+# Never ignore the CI workflows
+!.github/
+!.github/workflows/
+
+# Terraform — never commit real values or local state
+terraform/terraform.tfvars
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.kube/
+terraform/crash.log
+
+# All .md files except README.md (planning/implementation notes should not be committed)
+*.md
+!README.md
