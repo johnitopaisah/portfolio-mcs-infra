@@ -1,0 +1,101 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# terraform.tfvars.example
+#
+# Copy this file to terraform.tfvars and fill in your real values.
+# terraform.tfvars is gitignored — never commit it.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+# ── GCP ──────────────────────────────────────────────────────────────────────
+# Your GCP project ID (not the display name).
+# Run: gcloud projects list
+gcp_project_id = "YOUR_PROJECT_ID"
+
+# Region where all resources will be created.
+# Example: "us-central1", "europe-west1", "asia-east1"
+gcp_region = "us-central1"
+
+# Zone within the region for the GCE instance.
+# Must be inside gcp_region — e.g. if region is us-central1 use us-central1-a.
+gcp_zone = "us-central1-a"
+
+# Absolute path to the Terraform service account JSON key file.
+# Must be stored OUTSIDE the repository. Do not use a relative path.
+# Example: "/home/yourname/.gcp/portfolio-mcs-terraform-sa.json"
+gcp_credentials_file = "/home/yourname/.gcp/terraform-sa-key.json"
+
+# GCE machine type for devops-instance.
+# e2-standard-2 (2 vCPU, 8 GB) is recommended for 2-node Minikube + monitoring.
+# e2-medium (2 vCPU, 4 GB shared) is the minimum viable size.
+machine_type = "e2-standard-2"
+
+# Boot disk size in GB. 50 GB is sufficient for the full stack.
+disk_size_gb = 50
+
+# CIDR ranges allowed to SSH into the VM on port 22.
+# Restrict this to your IP for security: ["YOUR_IP/32"]
+# Use ["0.0.0.0/0"] only if you connect from multiple dynamic IPs.
+ssh_source_ranges = ["YOUR_IP/32"]
+
+
+# ── SSH ───────────────────────────────────────────────────────────────────────
+# Absolute path to your SSH public key file.
+# The public key is injected into the VM so you can connect as isahjohna.
+# Example: "/home/yourname/.ssh/id_ed25519.pub"
+ssh_public_key_path = "/home/yourname/.ssh/id_ed25519.pub"
+
+# Absolute path to the matching SSH private key.
+# Used by Terraform remote-exec to run commands on the VM.
+# Example: "/home/yourname/.ssh/id_ed25519"
+ssh_private_key_path = "/home/yourname/.ssh/id_ed25519"
+
+
+# ── Cloudflare ────────────────────────────────────────────────────────────────
+# Cloudflare API token scoped to DNS:Edit on the johnisah.org zone.
+# Dashboard → My Profile → API Tokens → Create Token → Edit zone DNS template.
+# Shown only once — store it in your password manager.
+cloudflare_api_token = "CLOUDFLARE_API_TOKEN"
+
+# Zone ID for johnisah.org.
+# Dashboard → click johnisah.org → right sidebar → API section → Zone ID.
+cloudflare_zone_id = "CLOUDFLARE_ZONE_ID"
+
+
+# ── Infisical ─────────────────────────────────────────────────────────────────
+# Plain-text (decoded) machine identity credentials for the Infisical operator.
+# Decode from bootstrapping/infisical-auth-secret-*.yaml with:
+#   echo "BASE64_VALUE" | base64 --decode | tr -d '\n'
+# Or get fresh credentials from app.infisical.com → Access Control → Machine Identities.
+
+infisical_ecommerce_client_id     = "YOUR_ECOMMERCE_CLIENT_ID"
+infisical_ecommerce_client_secret = "YOUR_ECOMMERCE_CLIENT_SECRET"
+
+infisical_portfolio_client_id     = "YOUR_PORTFOLIO_CLIENT_ID"
+infisical_portfolio_client_secret = "YOUR_PORTFOLIO_CLIENT_SECRET"
+
+
+# ── ArgoCD ────────────────────────────────────────────────────────────────────
+# HTTPS clone URL of this repository. ArgoCD uses this to pull k8s/ manifests.
+argocd_repo_url = "https://github.com/YOUR_GITHUB_USERNAME/portfolio-mcs.git"
+
+# Git branch ArgoCD tracks. Use "main" for production.
+argocd_target_revision = "main"
+
+
+# ── Tool versions ─────────────────────────────────────────────────────────────
+# Verify the latest stable releases before deploying:
+#
+#   Minikube:     curl -s https://api.github.com/repos/kubernetes/minikube/releases/latest | grep tag_name
+#   Helm v3:      curl -s https://api.github.com/repos/helm/helm/releases | python3 -c "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin) if r['tag_name'].startswith('v3.') and not r['prerelease']][0:1]"
+#   cert-manager: curl -s https://api.github.com/repos/cert-manager/cert-manager/releases/latest | grep tag_name
+#   Kubernetes:   curl -s https://dl.k8s.io/release/stable.txt
+#
+# k8s_version is intentionally pinned to v1.34.2 — the version tested with the
+# ArgoCD configuration in bootstrapping/argocd-values.yaml. Do not upgrade
+# without validating ArgoCD compatibility first.
+minikube_version     = "v1.38.1"
+k8s_version          = "v1.34.2"
+helm_version         = "v3.21.0"
+cert_manager_version = "v1.20.2"
