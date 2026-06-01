@@ -1,0 +1,334 @@
+# ============================================================
+#  Network Policies — portfolio namespace
+#
+#  Design: default-deny-all + explicit per-service allow rules
+#
+#  Namespace topology:
+#    traefik     → ingress controller (external HTTP/HTTPS)
+#    monitoring  → Prometheus (scrapes API :4000) + postgres-exporter (:5432)
+#    kube-system → CoreDNS (DNS resolution for all pods)
+#    portfolio   → all workloads (api, user-ui, admin-ui, db, job-ingestion)
+#
+#  NOTE: kindnet (current CNI) does not enforce NetworkPolicy.
+#  These rules will take effect when the CNI is switched to
+#  Calico or Cilium. They are correct for production use.
+# ============================================================
+
+# ── 0. Default deny-all ──────────────────────────────────────
+# Blocks all ingress and egress for every pod in the portfolio
+# namespace. Explicit allow rules below open only what is needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+
+# ── 1. API ───────────────────────────────────────────────────
+# Ingress:  Traefik (external), other portfolio pods (SSR), Prometheus (metrics)
+# Egress:   CoreDNS, DB (5432), external HTTPS (job boards, AI APIs), SMTP (465)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: api
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 4000
+
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+      ports:
+        - protocol: TCP
+          port: 4000
+
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 4000
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 465
+
+---
+
+# ── 2. User UI ───────────────────────────────────────────────
+# Ingress:  Traefik only (external users)
+# Egress:   CoreDNS + API (Next.js SSR calls to portfolio-api)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-user-ui
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: user-ui
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 3000
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: api
+      ports:
+        - protocol: TCP
+          port: 4000
+
+---
+
+# ── 3. Admin UI ──────────────────────────────────────────────
+# Ingress:  Traefik only
+# Egress:   CoreDNS + API (Next.js SSR calls to portfolio-api)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-admin-ui
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: admin-ui
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 3001
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: api
+      ports:
+        - protocol: TCP
+          port: 4000
+
+---
+
+# ── 4. Database ──────────────────────────────────────────────
+# Ingress:  API pods only (5432) + postgres-exporter from monitoring (5432)
+# Egress:   CoreDNS only — DB should never initiate outbound connections
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-db
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: database
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: api
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: job-ingestion
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 5432
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+
+# ── 5. Job Ingestion Worker ──────────────────────────────────
+# Ingress:  none (CronJob pods never receive traffic)
+# Egress:   CoreDNS, DB (direct PostgreSQL writes), external HTTPS (job
+#           board APIs: Adzuna, Jooble, etc.) + SMTP (job digest emails)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-job-ingestion
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: job-ingestion
+  policyTypes:
+    - Ingress
+    - Egress
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 465

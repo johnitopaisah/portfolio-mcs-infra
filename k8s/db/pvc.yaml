@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: portfolio-db-pvc
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard   
+  resources:
+    requests:
+      storage: 1Gi             

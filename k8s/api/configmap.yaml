@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portfolio-config-api
+  namespace: portfolio
+data:
+  NODE_ENV: "production"
+  PORT: "4000"
+  ALLOWED_ORIGINS: "https://johnisah.com,https://admin.johnisah.com"

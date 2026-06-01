@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: portfolio-mcs
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"   # create the project before any child Application
+spec:
+  description: "Portfolio microservices — API, admin-ui, user-ui, DB, and jobs"
+
+  # Only this repository is allowed as a source
+  sourceRepos:
+    - https://github.com/johnitopaisah/portfolio-mcs-infra
+
+  # Allowed deployment targets
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: portfolio          # workloads
+    - server: https://kubernetes.default.svc
+      namespace: argocd             # App of Apps child Applications
+
+  # Cluster-scoped resources this project may touch
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  # All namespace-scoped resource types are permitted
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # Prevent privilege escalation via cluster-level bindings
+  clusterResourceBlacklist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding

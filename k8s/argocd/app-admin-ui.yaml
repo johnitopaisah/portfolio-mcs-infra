@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: portfolio-admin-ui
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: portfolio-admin-ui
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/component: admin-ui
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: portfolio-mcs
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs-infra
+    targetRevision: develop
+    path: k8s/admin-ui
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: portfolio
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: portfolio-admin-ui
+      jsonPointers:
+        - /spec/replicas   # HPA owns this at runtime

@@ -1,0 +1,41 @@
+# ============================================================
+#  Portfolio MCS — App of Apps (bootstrap)
+#
+#  Bootstrap order (one-time setup):
+#    1. kubectl apply -f k8s/argocd/project.yaml -n argocd
+#    2. Create this app via ArgoCD UI → NEW APP → Edit as YAML
+#
+#  After the root app syncs, ArgoCD discovers and creates all
+#  child apps + the AppProject from the k8s/argocd/ directory.
+#
+#  NOTE: root-app intentionally stays in project "default".
+#  The AppProject "portfolio-mcs" is managed AS a child resource
+#  of root-app, so it cannot be the project root-app runs under.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: portfolio-root
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: portfolio-root
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/component: gitops-root
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs-infra
+    targetRevision: develop
+    path: k8s/argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

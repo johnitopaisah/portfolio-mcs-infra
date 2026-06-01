@@ -1,0 +1,165 @@
+# ============================================================
+#  CronJob — Database Backup Job
+#  Runs daily at 02:00 UTC
+#  Backs up portfolio_db to a PVC
+# ============================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-storage-pvc
+  namespace: backup
+  labels:
+    app: portfolio-mcs
+    component: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 10Gi  # Adjust based on DB size + retention
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: portfolio-db-backup
+  namespace: backup
+  labels:
+    app: portfolio-mcs
+    component: backup
+spec:
+  # Schedule: Daily at 02:00 UTC (change as needed)
+  # Format: minute hour day-of-month month day-of-week
+  schedule: "0 2 * * *"
+  
+  # Keep last 3 successful and 1 failed job for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  
+  # Suspend the job (set to false to enable)
+  suspend: false
+  
+  jobTemplate:
+    spec:
+      # Deadline: job must complete within 30 minutes
+      activeDeadlineSeconds: 1800
+      
+      # Backoff limit: retry up to 3 times on failure
+      backoffLimit: 3
+      
+      template:
+        metadata:
+          labels:
+            app: portfolio-mcs
+            component: backup
+          annotations:
+            description: "Portfolio database daily backup"
+        spec:
+          serviceAccountName: backup-serviceaccount
+          restartPolicy: OnFailure
+          
+          # Wait for backup to complete before terminating
+          terminationGracePeriodSeconds: 60
+          
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          
+          # Init container: check DB connectivity before backup
+          initContainers:
+            - name: check-db
+              image: postgres:16-alpine
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Checking database connectivity..."
+                  until pg_isready -h portfolio-db.portfolio.svc.cluster.local -p 5432; do
+                    echo "Waiting for database..."
+                    sleep 5
+                  done
+                  echo "Database is ready"
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: portfolio-secrets
+                      key: POSTGRES_PASSWORD
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "100m"
+                  memory: "128Mi"
+
+          containers:
+            - name: backup
+              image: postgres:16-alpine
+              imagePullPolicy: IfNotPresent
+              
+              command: ["/bin/sh"]
+              args:
+                - -c
+                - |
+                  source /scripts/backup.sh
+              
+              env:
+                # Database connection details
+                - name: POSTGRES_HOST
+                  value: "portfolio-db.portfolio.svc.cluster.local"
+                - name: POSTGRES_PORT
+                  value: "5432"
+                - name: POSTGRES_DB
+                  valueFrom:
+                    secretKeyRef:
+                      name: portfolio-secrets
+                      key: POSTGRES_DB
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: portfolio-secrets
+                      key: POSTGRES_USER
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: portfolio-secrets
+                      key: POSTGRES_PASSWORD
+              
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+              
+              volumeMounts:
+                # Mount backup scripts
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                # Mount backup storage
+                - name: backup-storage
+                  mountPath: /backups
+              
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+          
+          volumes:
+            # ConfigMap with backup scripts
+            - name: backup-scripts
+              configMap:
+                name: db-backup-scripts
+                defaultMode: 0755
+            # PVC for backup storage
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-storage-pvc

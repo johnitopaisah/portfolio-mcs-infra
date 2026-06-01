@@ -1,0 +1,5 @@
+# DEPRECATED — this file has been split into individual files.
+# PodDisruptionBudgets → k8s/policies/01-pdb-api.yaml
+#                        k8s/policies/02-pdb-user-ui.yaml
+#                        k8s/policies/03-pdb-admin-ui.yaml
+# NetworkPolicy        → k8s/policies/04-network-policy.yaml

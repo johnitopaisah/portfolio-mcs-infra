@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: portfolio-user-ui
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: portfolio-user-ui
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/component: user-ui
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: portfolio-mcs
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs-infra
+    targetRevision: develop
+    path: k8s/user-ui
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: portfolio
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: portfolio-user-ui
+      jsonPointers:
+        - /spec/replicas   # HPA owns this at runtime

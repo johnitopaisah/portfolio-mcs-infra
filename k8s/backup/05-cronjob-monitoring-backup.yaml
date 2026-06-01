@@ -1,0 +1,152 @@
+# ============================================================
+#  CronJob — Monitoring Data Backup
+#  Backs up Prometheus time-series data and Grafana configuration
+#  Runs daily at 04:00 UTC (after database and config backups)
+# ============================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-monitoring-volumes
+  namespace: backup
+  labels:
+    app: portfolio-mcs
+    component: backup
+spec:
+  # Schedule: Daily at 04:00 UTC (after all other backups)
+  schedule: "0 4 * * *"
+  
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  suspend: false
+  
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: portfolio-mcs
+            component: backup
+          annotations:
+            description: "Portfolio monitoring volumes daily backup (Prometheus + Grafana)"
+        spec:
+          serviceAccountName: backup-serviceaccount
+          restartPolicy: OnFailure
+          terminationGracePeriodSeconds: 120
+          
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534  # nobody user for tar operations
+            fsGroup: 65534
+          
+          containers:
+            - name: backup
+              image: bitnami/kubectl:latest
+              imagePullPolicy: IfNotPresent
+              
+              command: ["/bin/bash"]
+              args:
+                - -c
+                - |
+                  set -e
+                  BACKUP_DIR="/backups/monitoring"
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  
+                  mkdir -p "$BACKUP_DIR"
+                  
+                  echo "[$(date)] Starting monitoring volumes backup..."
+                  
+                  # ============================================================
+                  #  Backup Prometheus Data (time-series database)
+                  # ============================================================
+                  if kubectl get pvc prometheus-pvc -n monitoring &>/dev/null; then
+                    echo "[$(date)] Backing up Prometheus time-series data..."
+                    
+                    PROM_POD=$(kubectl get pod -n monitoring -l app=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+                    
+                    if [ -n "$PROM_POD" ]; then
+                      # Create tar archive of Prometheus data directory
+                      # Note: Prometheus stores TSDB in /prometheus/wal and /prometheus/chunks_head directories
+                      if kubectl exec -n monitoring "$PROM_POD" -- test -d /prometheus; then
+                        echo "[$(date)] Creating Prometheus archive..."
+                        kubectl exec -n monitoring "$PROM_POD" -- \
+                          tar czf - -C /prometheus . 2>/dev/null | \
+                          tee "$BACKUP_DIR/prometheus_${TIMESTAMP}.tar.gz" | wc -c > /tmp/prom_size.txt
+                        
+                        PROM_SIZE=$(cat /tmp/prom_size.txt | numfmt --to=iec 2>/dev/null || echo "unknown")
+                        echo "[$(date)] ✓ Prometheus backup complete (${PROM_SIZE})"
+                      else
+                        echo "[$(date)] ⚠ Prometheus data directory not found in pod"
+                      fi
+                    else
+                      echo "[$(date)] ⚠ Prometheus pod not found (may not be deployed)"
+                    fi
+                  else
+                    echo "[$(date)] ⚠ Prometheus PVC not found"
+                  fi
+                  
+                  # ============================================================
+                  #  Backup Grafana Data (dashboards & configuration)
+                  # ============================================================
+                  if kubectl get pvc grafana-pvc -n monitoring &>/dev/null; then
+                    echo "[$(date)] Backing up Grafana dashboards and configuration..."
+                    
+                    GRAFANA_POD=$(kubectl get pod -n monitoring -l app=grafana -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+                    
+                    if [ -n "$GRAFANA_POD" ]; then
+                      # Create tar archive of Grafana data directory
+                      # Grafana stores: plugins, dashboards, datasources, provisioning, alerting, etc.
+                      if kubectl exec -n monitoring "$GRAFANA_POD" -- test -d /var/lib/grafana; then
+                        echo "[$(date)] Creating Grafana archive..."
+                        kubectl exec -n monitoring "$GRAFANA_POD" -- \
+                          tar czf - -C /var/lib/grafana . 2>/dev/null | \
+                          tee "$BACKUP_DIR/grafana_${TIMESTAMP}.tar.gz" | wc -c > /tmp/grafana_size.txt
+                        
+                        GRAFANA_SIZE=$(cat /tmp/grafana_size.txt | numfmt --to=iec 2>/dev/null || echo "unknown")
+                        echo "[$(date)] ✓ Grafana backup complete (${GRAFANA_SIZE})"
+                      else
+                        echo "[$(date)] ⚠ Grafana data directory not found in pod"
+                      fi
+                    else
+                      echo "[$(date)] ⚠ Grafana pod not found (may not be deployed)"
+                    fi
+                  else
+                    echo "[$(date)] ⚠ Grafana PVC not found"
+                  fi
+                  
+                  # ============================================================
+                  #  Cleanup & Summary
+                  # ============================================================
+                  echo "[$(date)] Cleaning up old monitoring backups (>14 days)..."
+                  find "$BACKUP_DIR" -name "*.tar.gz" -mtime +14 -delete
+                  
+                  echo "[$(date)] Storage usage:"
+                  du -sh "$BACKUP_DIR" || true
+                  
+                  echo "[$(date)] ✓ Monitoring volumes backup complete"
+              
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "1Gi"
+              
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+              
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+          
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-storage-pvc

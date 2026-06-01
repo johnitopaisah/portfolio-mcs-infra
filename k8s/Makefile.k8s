@@ -1,0 +1,94 @@
+# Docker image build/push commands
+docker-build:
+	@echo "Building Docker images..."
+	docker build -t portfolio-mcs-api:latest ./api
+	docker build -t portfolio-mcs-user-ui:latest ./user-ui
+	docker build -t portfolio-mcs-admin-ui:latest ./admin-ui
+
+docker-push:
+	@echo "Pushing Docker images..."
+	docker push portfolio-mcs-api:latest
+	docker push portfolio-mcs-user-ui:latest
+	docker push portfolio-mcs-admin-ui:latest
+
+# Kubernetes operations
+k8s-namespace:
+	kubectl apply -f k8s/00-namespace.yaml
+
+k8s-config:
+	kubectl apply -f k8s/01-configmap.yaml
+	kubectl apply -f k8s/secrets/01-secrets.yaml
+
+k8s-database:
+	kubectl apply -f k8s/db/
+
+k8s-api:
+	kubectl apply -f k8s/api/
+
+k8s-user-ui:
+	kubectl apply -f k8s/user-ui/
+
+k8s-admin-ui:
+	kubectl apply -f k8s/admin-ui/
+
+k8s-policies:
+	kubectl apply -f k8s/02-policies.yaml
+
+k8s-ingress:
+	kubectl apply -f k8s/ingress/
+
+k8s-deploy: k8s-namespace k8s-config k8s-database k8s-api k8s-user-ui k8s-admin-ui k8s-policies k8s-ingress
+	@echo "✅ Deployment complete"
+
+k8s-delete:
+	@echo "Deleting Kubernetes resources..."
+	kubectl delete namespace portfolio --ignore-not-found
+
+k8s-status:
+	@echo "=== Namespace ==="
+	kubectl get ns portfolio
+	@echo "\n=== Pods ==="
+	kubectl get pods -n portfolio
+	@echo "\n=== Services ==="
+	kubectl get svc -n portfolio
+	@echo "\n=== Deployments ==="
+	kubectl get deployment -n portfolio
+	@echo "\n=== Ingress ==="
+	kubectl get ingress -n portfolio
+
+k8s-logs:
+	kubectl logs -f -n portfolio --all-containers=true -l app=portfolio-mcs
+
+k8s-logs-api:
+	kubectl logs -f deployment/portfolio-api -n portfolio
+
+k8s-logs-db:
+	kubectl logs -f deployment/portfolio-db -n portfolio
+
+k8s-port-forward:
+	@echo "Port forwarding..."
+	@echo "API: http://localhost:4000"
+	@echo "User UI: http://localhost:3000"
+	@echo "Admin UI: http://localhost:3001"
+	kubectl port-forward svc/portfolio-api 4000:4000 -n portfolio & \
+	kubectl port-forward svc/portfolio-user-ui 3000:3000 -n portfolio & \
+	kubectl port-forward svc/portfolio-admin-ui 3001:3001 -n portfolio
+
+k8s-backup-db:
+	@echo "Backing up database..."
+	@mkdir -p backups
+	@POD=$$(kubectl get pod -l component=database -n portfolio -o jsonpath='{.items[0].metadata.name}'); \
+	kubectl exec -t $$POD -n portfolio -- pg_dump -U portfolio_user -d portfolio_db > backups/portfolio_db_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "✅ Backup complete"
+
+k8s-restore-db:
+	@echo "Restoring database from backup..."
+	@if [ -z "$(BACKUP_FILE)" ]; then \
+		echo "Usage: make k8s-restore-db BACKUP_FILE=path/to/backup.sql"; \
+		exit 1; \
+	fi
+	@POD=$$(kubectl get pod -l component=database -n portfolio -o jsonpath='{.items[0].metadata.name}'); \
+	kubectl exec -i $$POD -n portfolio -- psql -U portfolio_user -d portfolio_db < $(BACKUP_FILE)
+	@echo "✅ Restore complete"
+
+.PHONY: docker-build docker-push k8s-namespace k8s-config k8s-database k8s-api k8s-user-ui k8s-admin-ui k8s-policies k8s-ingress k8s-deploy k8s-delete k8s-status k8s-logs k8s-logs-api k8s-logs-db k8s-port-forward k8s-backup-db k8s-restore-db

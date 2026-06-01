@@ -1,0 +1,29 @@
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: portfolio-policies
+#   namespace: argocd
+#   labels:
+#     app.kubernetes.io/name: portfolio-policies
+#     app.kubernetes.io/part-of: portfolio-mcs
+#     app.kubernetes.io/component: policies
+#     app.kubernetes.io/managed-by: argocd
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "0"
+#   finalizers:
+#     - resources-finalizer.argocd.argoproj.io
+# spec:
+#   project: portfolio-mcs
+#   source:
+#     repoURL: https://github.com/johnitopaisah/portfolio-mcs
+#     targetRevision: develop
+#     path: k8s/policies
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: portfolio
+#   syncPolicy:
+#     automated:
+#       selfHeal: true
+#       prune: true
+#     syncOptions:
+#       - CreateNamespace=false

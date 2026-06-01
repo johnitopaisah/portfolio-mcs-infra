@@ -1,0 +1,52 @@
+# ============================================================
+#  Monitoring Root App (App of Apps entry point)
+#
+#  This file lives in k8s/argocd/ so portfolio-root picks it up
+#  automatically on its next sync — no manual ArgoCD UI step needed.
+#
+#  When portfolio-root syncs this file, it creates the
+#  monitoring-root Application, which then watches
+#  monitoring/argocd/ and creates:
+#    - AppProject: portfolio-monitoring
+#    - Applications: monitoring-infisical, monitoring-policies,
+#      monitoring-prometheus, monitoring-exporters,
+#      monitoring-alertmanager, monitoring-grafana
+#
+#  Sync wave ordering mirrors portfolio-root:
+#    monitoring-root (wave 0) is created before child apps
+#    (wave -1 for AppProject, then 0-5 for child apps)
+#
+#  NOTE: project must be "default" here — same as portfolio-root.
+#  The AppProject "portfolio-monitoring" is managed AS a child
+#  resource of monitoring-root, so it cannot be the project that
+#  monitoring-root itself runs under.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-root
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring-root
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: gitops-root
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs-infra
+    targetRevision: develop
+    path: monitoring/argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

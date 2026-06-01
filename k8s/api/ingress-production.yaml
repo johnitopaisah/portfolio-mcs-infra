@@ -1,0 +1,64 @@
+# Ingress — host-based routing for all three domains.
+#
+# Domains:
+#   johnisah.org        → user-ui  (port 3000)
+#   api.johnisah.org    → api      (port 4000)
+#   admin.johnisah.org  → admin-ui (port 3001)
+#
+# TLS certificates are issued and renewed automatically by cert-manager.
+#
+# DNS setup (do this BEFORE applying this file):
+#   Create A records pointing all three domains to your cluster LoadBalancer IP.
+#   Get the IP: kubectl get svc -n kube-system | grep traefik
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portfolio-ingress
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - johnisah.org
+        - api.johnisah.org
+        - admin.johnisah.org
+      secretName: portfolio-tls
+  rules:
+    - host: johnisah.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: portfolio-user-ui
+                port:
+                  number: 3000
+
+    - host: api.johnisah.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: portfolio-api
+                port:
+                  number: 4000
+
+    - host: admin.johnisah.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: portfolio-admin-ui
+                port:
+                  number: 3001

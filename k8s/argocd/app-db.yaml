@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: portfolio-db
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: portfolio-db
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/component: database
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"   # DB must be healthy before app services
+  # No finalizer — ArgoCD must never auto-delete database resources
+spec:
+  project: portfolio-mcs
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs-infra
+    targetRevision: develop
+    path: k8s/db
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: portfolio
+  # NO automated sync — DB changes require a manual review + click in ArgoCD UI
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: portfolio-db
+      jsonPointers:
+        - /spec/replicas

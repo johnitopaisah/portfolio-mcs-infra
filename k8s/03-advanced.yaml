@@ -1,0 +1,7 @@
+# DEPRECATED — this file has been split into individual files.
+# HorizontalPodAutoscalers → k8s/hpa/01-hpa-api.yaml
+#                            k8s/hpa/02-hpa-user-ui.yaml
+#                            k8s/hpa/03-hpa-admin-ui.yaml
+# ResourceQuota            → k8s/policies/05-resource-quota.yaml
+# LimitRange               → k8s/policies/06-limit-range.yaml
+# cert-manager ClusterIssuer → k8s/ingress/00-cert-manager.yaml

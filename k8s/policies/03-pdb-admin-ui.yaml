@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: portfolio-admin-ui-pdb
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: portfolio-mcs
+      component: admin-ui

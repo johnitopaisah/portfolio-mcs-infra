@@ -1,0 +1,191 @@
+# ============================================================
+#  ConfigMap — Database Backup Scripts
+#  Contains PostgreSQL backup and restore scripts
+# ============================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-backup-scripts
+  namespace: backup
+  labels:
+    app: portfolio-mcs
+    component: backup
+data:
+  # Main backup script
+  backup.sh: |
+    #!/bin/bash
+    set -e
+    
+    BACKUP_DIR="/backups"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    BACKUP_FILE="$BACKUP_DIR/portfolio_db_${TIMESTAMP}.sql.gz"
+    
+    echo "[$(date)] Starting database backup..."
+    
+    # Create backup directory
+    mkdir -p "$BACKUP_DIR"
+    
+    # Get DB credentials from environment
+    if [ -z "$POSTGRES_USER" ] || [ -z "$POSTGRES_PASSWORD" ] || [ -z "$POSTGRES_DB" ] || [ -z "$POSTGRES_HOST" ]; then
+      echo "ERROR: Missing required environment variables"
+      exit 1
+    fi
+    
+    # Perform pg_dump with compression
+    PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \
+      -h "$POSTGRES_HOST" \
+      -p "$POSTGRES_PORT" \
+      -U "$POSTGRES_USER" \
+      -d "$POSTGRES_DB" \
+      --verbose \
+      --no-password \
+      | gzip > "$BACKUP_FILE"
+    
+    if [ $? -eq 0 ]; then
+      BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+      echo "[$(date)] ✓ Backup successful: $BACKUP_FILE ($BACKUP_SIZE)"
+      
+      # Cleanup old backups (keep last 7 days)
+      find "$BACKUP_DIR" -name "portfolio_db_*.sql.gz" -mtime +7 -delete
+      echo "[$(date)] Old backups cleaned up (>7 days)"
+      
+      exit 0
+    else
+      echo "[$(date)] ✗ Backup failed!"
+      exit 1
+    fi
+
+  # Restore script
+  # Restore monitoring data script
+  restore-monitoring.sh: |
+    #!/bin/bash
+    set -e
+    
+    BACKUP_TYPE="${1}"  # prometheus or grafana
+    BACKUP_FILE="${2}"
+    
+    if [ -z "$BACKUP_TYPE" ] || [ -z "$BACKUP_FILE" ]; then
+      echo "Usage: restore-monitoring.sh <prometheus|grafana> <backup-file.tar.gz>"
+      exit 1
+    fi
+    
+    if [ ! -f "$BACKUP_FILE" ]; then
+      echo "ERROR: Backup file not found: $BACKUP_FILE"
+      exit 1
+    fi
+    
+    case "$BACKUP_TYPE" in
+      prometheus)
+        echo "[$(date)] Restoring Prometheus data from: $BACKUP_FILE"
+        PROM_POD=$(kubectl get pod -n monitoring -l app=prometheus -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n monitoring -i "$PROM_POD" -- tar xzf - -C /prometheus < "$BACKUP_FILE"
+        echo "[$(date)] ✓ Prometheus restore complete"
+        ;;
+      grafana)
+        echo "[$(date)] Restoring Grafana data from: $BACKUP_FILE"
+        GRAFANA_POD=$(kubectl get pod -n monitoring -l app=grafana -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n monitoring -i "$GRAFANA_POD" -- tar xzf - -C /var/lib/grafana < "$BACKUP_FILE"
+        # Restart Grafana to reload dashboards
+        kubectl rollout restart deployment/grafana -n monitoring
+        echo "[$(date)] ✓ Grafana restore complete and restarted"
+        ;;
+      *)
+        echo "ERROR: Invalid backup type: $BACKUP_TYPE"
+        exit 1
+        ;;
+    esac
+
+  restore.sh: |
+    #!/bin/bash
+    set -e
+    
+    BACKUP_FILE="${1}"
+    
+    if [ -z "$BACKUP_FILE" ]; then
+      echo "Usage: restore.sh <backup-file.sql.gz>"
+      exit 1
+    fi
+    
+    if [ ! -f "$BACKUP_FILE" ]; then
+      echo "ERROR: Backup file not found: $BACKUP_FILE"
+      exit 1
+    fi
+    
+    echo "[$(date)] Starting database restore from: $BACKUP_FILE"
+    
+    # Get DB credentials from environment
+    if [ -z "$POSTGRES_USER" ] || [ -z "$POSTGRES_PASSWORD" ] || [ -z "$POSTGRES_DB" ] || [ -z "$POSTGRES_HOST" ]; then
+      echo "ERROR: Missing required environment variables"
+      exit 1
+    fi
+    
+    # Decompress and restore
+    gunzip -c "$BACKUP_FILE" | PGPASSWORD="$POSTGRES_PASSWORD" psql \
+      -h "$POSTGRES_HOST" \
+      -p "$POSTGRES_PORT" \
+      -U "$POSTGRES_USER" \
+      -d "$POSTGRES_DB" \
+      --verbose
+    
+    if [ $? -eq 0 ]; then
+      echo "[$(date)] ✓ Restore successful!"
+      exit 0
+    else
+      echo "[$(date)] ✗ Restore failed!"
+      exit 1
+    fi
+
+  # List backups script
+  list-backups.sh: |
+    #!/bin/bash
+    BACKUP_DIR="/backups"
+    
+    if [ ! -d "$BACKUP_DIR" ]; then
+      echo "No backups found"
+      exit 0
+    fi
+    
+    echo "Available backups:"
+    ls -lh "$BACKUP_DIR"/portfolio_db_*.sql.gz | awk '{print $9, "(" $5 ")"}'  
+
+  # Monitoring data backup script
+  backup-monitoring.sh: |
+    #!/bin/bash
+    set -e
+    
+    BACKUP_DIR="/backups/monitoring"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    
+    mkdir -p "$BACKUP_DIR"
+    
+    echo "[$(date)] Starting monitoring data backup..."
+    
+    # Backup Prometheus data
+    if kubectl get pvc prometheus-pvc -n monitoring &>/dev/null; then
+      echo "[$(date)] Backing up Prometheus data..."
+      PROM_POD=$(kubectl get pod -n monitoring -l app=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+      if [ -n "$PROM_POD" ]; then
+        kubectl exec -n monitoring "$PROM_POD" -- tar czf - -C /prometheus . 2>/dev/null > "$BACKUP_DIR/prometheus_${TIMESTAMP}.tar.gz"
+        echo "[$(date)] ✓ Prometheus backup complete"
+      else
+        echo "[$(date)] ⚠ Prometheus pod not found"
+      fi
+    fi
+    
+    # Backup Grafana data
+    if kubectl get pvc grafana-pvc -n monitoring &>/dev/null; then
+      echo "[$(date)] Backing up Grafana data..."
+      GRAFANA_POD=$(kubectl get pod -n monitoring -l app=grafana -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+      if [ -n "$GRAFANA_POD" ]; then
+        kubectl exec -n monitoring "$GRAFANA_POD" -- tar czf - -C /var/lib/grafana . 2>/dev/null > "$BACKUP_DIR/grafana_${TIMESTAMP}.tar.gz"
+        echo "[$(date)] ✓ Grafana backup complete"
+      else
+        echo "[$(date)] ⚠ Grafana pod not found"
+      fi
+    fi
+    
+    # Cleanup old backups (keep 14 days)
+    find "$BACKUP_DIR" -name "*.tar.gz" -mtime +14 -delete
+    echo "[$(date)] Old monitoring backups cleaned up (>14 days)"
+    echo "[$(date)] Monitoring backup complete"

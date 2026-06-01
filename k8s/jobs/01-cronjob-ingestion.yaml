@@ -1,0 +1,219 @@
+---
+# ============================================================
+#  Job Ingestion Worker — Kubernetes CronJob
+#  Runs every 8 hours: ingest → AI filter → notify → expire → purge → backup
+#  Backups land on the host node at ~/db-backups (hostPath volume).
+#  Daily digest is sent by the API process (startDailyJobDigest),
+#  not by this CronJob — so no duplicate 08:15 emails.
+# ============================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: job-ingestion-worker
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: job-ingestion
+spec:
+  schedule: "0 */8 * * *"
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 1
+  suspend: false
+  concurrencyPolicy: Forbid   # prevent overlap if a run takes longer than expected
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800  # 30 min hard limit
+      template:
+        metadata:
+          labels:
+            app: portfolio-mcs
+            component: job-ingestion
+        spec:
+          restartPolicy: Never
+          serviceAccountName: job-worker
+          # runAsNonRoot/runAsUser are set per-container so the initContainer
+          # can run as root to chown the hostPath directory.
+          securityContext:
+            fsGroup: 1001
+
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+
+          volumes:
+            - name: db-backups
+              hostPath:
+                path: /home/isahjohna/db-backups
+                type: DirectoryOrCreate
+
+          # Runs as root to chown the hostPath mount to nodeapp (UID 1001).
+          # DirectoryOrCreate creates the dir as root; explicit chown is required.
+          initContainers:
+          - name: fix-backup-perms
+            image: busybox:1.36
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+            command:
+              - sh
+              - -c
+              - |
+                mkdir -p /home/nodeapp/db-backups
+                chown -R 1001:1001 /home/nodeapp/db-backups
+                chmod 750 /home/nodeapp/db-backups
+            volumeMounts:
+              - name: db-backups
+                mountPath: /home/nodeapp/db-backups
+
+          containers:
+          - name: worker
+            image: ghcr.io/johnitopaisah/portfolio-mcs/api:latest
+            imagePullPolicy: Always
+            command: ["node", "src/workers/jobWorker.js"]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              runAsGroup: 1001
+              allowPrivilegeEscalation: false
+
+            volumeMounts:
+              - name: db-backups
+                mountPath: /home/nodeapp/db-backups
+
+            env:
+            # ── Runtime ────────────────────────────────────────
+            - name: NODE_ENV
+              value: "production"
+
+            # ── Database ───────────────────────────────────────
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: DATABASE_URL
+
+            # ── LLM scoring (Groq preferred — free 30 req/min) ─
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: GROQ_API_KEY
+                  optional: true
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: GEMINI_API_KEY
+                  optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+
+            # ── Job API credentials ────────────────────────────
+            - name: JOOBLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: JOOBLE_API_KEY
+                  optional: true
+
+            # Adzuna — free official API (250 req/day)
+            - name: ADZUNA_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: ADZUNA_APP_ID
+                  optional: true
+            - name: ADZUNA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: ADZUNA_API_KEY
+                  optional: true
+
+            # ── Notifications (Zoho SMTP) ──────────────────────
+            - name: NOTIFY_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: NOTIFY_SMTP_HOST
+                  optional: true
+            - name: NOTIFY_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: NOTIFY_SMTP_PORT
+                  optional: true
+            - name: NOTIFY_EMAIL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: NOTIFY_EMAIL_USER
+                  optional: true
+            - name: NOTIFY_EMAIL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: NOTIFY_EMAIL_PASS
+                  optional: true
+            - name: NOTIFY_EMAIL_TO
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: NOTIFY_EMAIL_TO
+                  optional: true
+
+            # ── Poll interval (informational — schedule controls timing) ──
+            - name: JOB_POLL_INTERVAL_MINUTES
+              value: "15"
+
+            resources:
+              requests:
+                cpu:    200m
+                memory: 256Mi
+              limits:
+                cpu:    600m
+                memory: 512Mi
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: job-worker
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: job-ingestion
+
+---
+# Minimal permissions — reads ConfigMaps for config only
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: job-worker
+  namespace: portfolio
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: job-worker
+  namespace: portfolio
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: job-worker
+subjects:
+- kind: ServiceAccount
+  name: job-worker
+  namespace: portfolio

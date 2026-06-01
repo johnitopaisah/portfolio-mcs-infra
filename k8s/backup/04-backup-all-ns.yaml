@@ -1,0 +1,107 @@
+# ============================================================
+#  CronJob — ConfigMap & Secret Backup
+#  Backs up critical ConfigMaps and Secrets from all namespaces
+#  Runs daily at 03:00 UTC
+# ============================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-configmaps-secrets
+  namespace: backup
+  labels:
+    app: portfolio-mcs
+    component: backup
+spec:
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  suspend: false
+  
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: portfolio-mcs
+            component: backup
+        spec:
+          serviceAccountName: backup-serviceaccount
+          restartPolicy: OnFailure
+          terminationGracePeriodSeconds: 60
+          
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          
+          containers:
+            - name: backup
+              image: bitnami/kubectl:latest
+              imagePullPolicy: IfNotPresent
+              
+              command: ["/bin/bash"]
+              args:
+                - -c
+                - |
+                  set -e
+                  BACKUP_DIR="/backups/configs"
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  
+                  mkdir -p "$BACKUP_DIR"
+                  
+                  echo "[$(date)] Starting ConfigMap & Secret backup..."
+                  
+                  # Backup secrets from portfolio namespace
+                  echo "Backing up secrets from portfolio namespace..."
+                  kubectl get secret portfolio-secrets infisical-machine-identity -n portfolio -o yaml > \
+                    "$BACKUP_DIR/portfolio-secrets_${TIMESTAMP}.yaml"
+                  
+                  # Backup Infisical secret
+                  echo "Backing up infisical-secrets..."
+                  kubectl get secret infisical-secret -n portfolio -o yaml > \
+                    "$BACKUP_DIR/infisical-secret_${TIMESTAMP}.yaml" 2>/dev/null || echo "Infisical secret not found"
+                  
+                  # Backup all ConfigMaps from portfolio namespace
+                  echo "Backing up portfolio ConfigMaps..."
+                  kubectl -n portfolio get configmaps -n portfolio -o yaml > \
+                    "$BACKUP_DIR/portfolio-configmaps_${TIMESTAMP}.yaml"
+                  
+                  # Backup monitoring namespace secrets
+                  echo "Backing up monitoring secrets..."
+                  kubectl -n monitoring get secrets alertmanager-smtp-secret grafana-admin-secret infisical-machine-identity postgres-exporter-secret  -o yaml > \
+                    "$BACKUP_DIR/monitoring-secrets_${TIMESTAMP}.yaml" 2>/dev/null || true
+                  
+                  # Backup monitoring ConfigMaps
+                  echo "Backing up monitoring ConfigMaps..."
+                  kubectl get configmaps -n monitoring -o yaml > \
+                    "$BACKUP_DIR/monitoring-configmaps_${TIMESTAMP}.yaml" 2>/dev/null || true
+                  
+                  # Compress for storage
+                  tar -czf "$BACKUP_DIR/configs_${TIMESTAMP}.tar.gz" \
+                    "$BACKUP_DIR"/*.yaml 2>/dev/null || true
+                  
+                  # Cleanup old backups (>14 days)
+                  find "$BACKUP_DIR" -name "*.yaml" -mtime +14 -delete
+                  find "$BACKUP_DIR" -name "*.tar.gz" -mtime +14 -delete
+                  
+                  echo "[$(date)] ✓ ConfigMap & Secret backup complete"
+              
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+              
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+          
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-storage-pvc

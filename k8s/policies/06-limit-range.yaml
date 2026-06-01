@@ -1,0 +1,34 @@
+# # ============================================================
+# #  LimitRange — portfolio namespace
+# #
+# #  Applies default requests/limits to any container that does
+# #  not set them explicitly, preventing unbounded pods from
+# #  consuming unlimited cluster resources.
+# #
+# #  Min/max are bounds — scheduler rejects containers outside range.
+# #  Default/defaultRequest are applied when not explicitly set.
+# # ============================================================
+
+# apiVersion: v1
+# kind: LimitRange
+# metadata:
+#   name: portfolio-limits
+#   namespace: portfolio
+#   labels:
+#     app.kubernetes.io/part-of: portfolio-mcs
+#     app.kubernetes.io/managed-by: argocd
+# spec:
+#   limits:
+#     - type: Container
+#       min:
+#         cpu:    "10m"
+#         memory: "32Mi"
+#       max:
+#         cpu:    "1"
+#         memory: "1Gi"
+#       defaultRequest:
+#         cpu:    "50m"
+#         memory: "64Mi"
+#       default:
+#         cpu:    "100m"
+#         memory: "128Mi"

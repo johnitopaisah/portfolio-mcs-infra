@@ -1,0 +1,81 @@
+# ============================================================
+#  RBAC — Backup Service Account
+#  Permits scheduled backup jobs to connect to databases
+#  and access secrets
+# ============================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-serviceaccount
+  namespace: backup
+  labels:
+    app: portfolio-mcs
+    component: backup
+
+---
+# Role — allows reading secrets and creating ConfigMaps/Jobs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-role
+  labels:
+    app: portfolio-mcs
+    component: backup
+rules:
+  # Read secrets from portfolio namespace (DB credentials)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+    resourceNames: ["portfolio-secrets"]
+    namespaces: ["portfolio"]
+  # Read ConfigMaps for backup scripts
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  # Create/update ConfigMaps for backup metadata
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "update", "patch"]
+  # Read pods for pod exec (backup jobs)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # Pod exec for running backup commands
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  # Read services for network connectivity
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  # Create jobs programmatically if needed
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list"]
+  # Read monitoring namespace pods (for volume access)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+    namespaces: ["monitoring"]
+  # View events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-rolebinding
+  labels:
+    app: portfolio-mcs
+    component: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-role
+subjects:
+  - kind: ServiceAccount
+    name: backup-serviceaccount
+    namespace: backup

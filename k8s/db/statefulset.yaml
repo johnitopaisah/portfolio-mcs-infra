@@ -1,0 +1,98 @@
+# StatefulSet — not a Deployment.
+# Uses the CI-built GHCR image which already contains schema.sql and seed.sh.
+# No ConfigMap volume mounts needed — init scripts are baked into the image.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: portfolio-db
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: database
+spec:
+  serviceName: portfolio-db   # must match the headless Service name
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+  selector:
+    matchLabels:
+      app: portfolio-mcs
+      component: database
+  template:
+    metadata:
+      labels:
+        app: portfolio-mcs
+        component: database
+    spec:
+      terminationGracePeriodSeconds: 60
+
+      # Pin to node 1 — hostpath PVC data lives on devops-minikube, not m02
+      nodeSelector:
+        kubernetes.io/hostname: devops-minikube
+
+      # Allow the postgres process (uid 999) to write to the mounted PVC
+      securityContext:
+        fsGroup: 999
+
+      # Required — db image is in private GHCR
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+
+      containers:
+        - name: postgres
+          image: ghcr.io/johnitopaisah/portfolio-mcs/db:v0.0.9-rc3
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name:          postgres
+              containerPort: 5432
+              protocol:      TCP
+
+          envFrom:
+            - secretRef:
+                name: portfolio-secrets
+
+          resources:
+            requests:
+              cpu:    "100m"
+              memory: "256Mi"
+            limits:
+              cpu:    "400m"
+              memory: "412Mi"
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 30
+            periodSeconds:        10
+            timeoutSeconds:        5
+            failureThreshold:      3
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 10
+            periodSeconds:        5
+            timeoutSeconds:        3
+            failureThreshold:      3
+
+          volumeMounts:
+            - name:      db-data
+              mountPath: /var/lib/postgresql/data
+              subPath:   postgres   # isolates postgres data inside the PV
+
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: portfolio-db-pvc
